@@ -1,0 +1,1761 @@
+public PlVers:__version =
+{
+	version = 5,
+	filevers = "1.3.2-dev",
+	date = "01/27/2011",
+	time = "20:54:49"
+};
+new Float:NULL_VECTOR[3];
+new String:NULL_STRING[4];
+public Extension:__ext_core =
+{
+	name = "Core",
+	file = "core",
+	autoload = 0,
+	required = 0,
+};
+new MaxClients;
+public Extension:__ext_sdktools =
+{
+	name = "SDKTools",
+	file = "sdktools.ext",
+	autoload = 1,
+	required = 1,
+};
+new Handle:HCvarArangStartDelay;
+new Handle:HCvarArangHandicap;
+new Handle:HCvarArangActive;
+new Handle:HCvarArangCoopOnly;
+new Handle:HCvarArangSettings;
+new Handle:HCvarArangLockMob;
+new Handle:HCvarArangFieldMob;
+new Handle:HCvarArangFinaleBosses;
+new Handle:HCvarArangCommonLimit;
+new Handle:HCvarArangCommonLimitMax;
+new Handle:HCvarArangCommonDisabled;
+new Handle:HCvarArangInvisibleWitchPercent;
+new Handle:HCvarArangMaxTank;
+new Handle:HCvarArangMaxWitch;
+new Handle:HCvarArangMaxSingleWitch;
+new Handle:HCvarArangSuperTankHealth;
+new Handle:HCvarArangMegaTankHealth;
+public Plugin:myinfo =
+{
+	name = "[L4D2] Arang Director by Frozenology",
+	description = "Arang Director",
+	author = "Frozenology",
+	version = "2.4",
+	url = "www.aranghq.com"
+};
+new GameTime;
+new RoundTime;
+new LastMobTime;
+new NextMobTime;
+new CurMobTime;
+new CurBossTime;
+new SuggMobType;
+new LastMobType;
+new LastMobTypeCount;
+new Handicap;
+new LastWitchTime;
+new MaxWitch;
+new MaxSingleWitch;
+new WitchFieldCount;
+new TankFieldCount;
+new SpamFieldCount;
+new SuperTankCount;
+new WitchesCount;
+new TanksCount;
+new FinaleTanksCount;
+new TankAddMobTime;
+new TankSubMobTime;
+new TankAddHealth;
+new SuperTankHealth1;
+new SuperTankHealth2;
+new BossSpawnRetry;
+new WitchKilledFreq;
+new SurvivorsCount;
+new SurvivorsAvgHealth;
+new SurvivorsGreenCount;
+new SurvivorsYellowCount;
+new SurvivorsRedCount;
+new SurvivorsCriticalCount;
+new IsDirectorEnabled;
+new IsNonSurvivorSueside;
+new IsArangPanicEvent;
+new IsArangFinale;
+new FinaleBossesEnabled;
+new HSpeedShoeOffs;
+new PlayersSlowdown[65];
+new HPlayerHealthOffs;
+new HPlayerMaxHealthOffs;
+new HPlayerIsIncapOffs;
+new String:CurCommand[256];
+new CurCommandCount;
+public __ext_core_SetNTVOptional()
+{
+	MarkNativeAsOptional("GetFeatureStatus");
+	MarkNativeAsOptional("RequireFeature");
+	MarkNativeAsOptional("AddCommandListener");
+	MarkNativeAsOptional("RemoveCommandListener");
+	VerifyCoreVersion();
+	return 0;
+}
+
+Float:operator/(Float:,_:)(Float:oper1, oper2)
+{
+	return oper1 / float(oper2);
+}
+
+StrCopy(String:dest[], destLen, String:source[])
+{
+	return strcopy(dest, destLen, source);
+}
+
+ExplodeString(String:text[], String:split[], String:buffers[][], maxStrings, maxStringLength)
+{
+	new reloc_idx;
+	new idx;
+	new total;
+	new var1;
+	if (maxStrings < 1 || split[0])
+	{
+		return 0;
+	}
+	while ((idx = SplitString(text[reloc_idx], split, buffers[total], maxStringLength)) != -1)
+	{
+		reloc_idx = idx + reloc_idx;
+		if (text[reloc_idx])
+		{
+			total++;
+			if (total >= maxStrings)
+			{
+				return total;
+			}
+		}
+		new var2;
+		if (text[reloc_idx] && total <= maxStrings + -1)
+		{
+			total++;
+			strcopy(buffers[total], maxStringLength, text[reloc_idx]);
+		}
+		return total;
+	}
+	new var2;
+	if (text[reloc_idx] && total <= maxStrings + -1)
+	{
+		total++;
+		strcopy(buffers[total], maxStringLength, text[reloc_idx]);
+	}
+	return total;
+}
+
+GetEntSendPropOffs(ent, String:prop[], bool:actual)
+{
+	decl String:cls[64];
+	if (!GetEntityNetClass(ent, cls, 64))
+	{
+		return -1;
+	}
+	if (actual)
+	{
+		return FindSendPropInfo(cls, prop, 0, 0, 0);
+	}
+	return FindSendPropOffs(cls, prop);
+}
+
+SetEntityRenderFx(entity, RenderFx:fx)
+{
+	static bool:gotconfig;
+	static String:prop[32];
+	if (!gotconfig)
+	{
+		new Handle:gc = LoadGameConfigFile("core.games");
+		new bool:exists = GameConfGetKeyValue(gc, "m_nRenderFX", prop, 32);
+		CloseHandle(gc);
+		if (!exists)
+		{
+			strcopy(prop, 32, "m_nRenderFX");
+		}
+		gotconfig = true;
+	}
+	SetEntProp(entity, PropType:0, prop, fx, 1);
+	return 0;
+}
+
+SetEntityRenderColor(entity, r, g, b, a)
+{
+	static bool:gotconfig;
+	static String:prop[32];
+	if (!gotconfig)
+	{
+		new Handle:gc = LoadGameConfigFile("core.games");
+		new bool:exists = GameConfGetKeyValue(gc, "m_clrRender", prop, 32);
+		CloseHandle(gc);
+		if (!exists)
+		{
+			strcopy(prop, 32, "m_clrRender");
+		}
+		gotconfig = true;
+	}
+	new offset = GetEntSendPropOffs(entity, prop, false);
+	if (0 >= offset)
+	{
+		ThrowError("SetEntityRenderColor not supported by this mod");
+	}
+	SetEntData(entity, offset, r, 1, true);
+	SetEntData(entity, offset + 1, g, 1, true);
+	SetEntData(entity, offset + 2, b, 1, true);
+	SetEntData(entity, offset + 3, a, 1, true);
+	return 0;
+}
+
+public OnPluginStart()
+{
+	CreateConVar("arang_director_version", "2.4", "arang director", 270656, false, 0.0, false, 0.0);
+	RegConsoleCmd("arang_director_randomize", ArangDirector_Randomize, "", 0);
+	RegConsoleCmd("arang_director_status", ArangDirector_Status, "", 0);
+	RegConsoleCmd("arang_director_suggmob", ArangDirector_SuggMobType, "", 0);
+	RegConsoleCmd("arang_director_forcemob", ArangDirector_ForceMob, "", 0);
+	HCvarArangActive = CreateConVar("arang_director_enabled", "0", "Set Arang Director is active", 262400, false, 0.0, false, 0.0);
+	HCvarArangHandicap = CreateConVar("arang_director_handicap", "0", "Set Arang Director Less Delay NextMob", 262400, false, 0.0, false, 0.0);
+	HCvarArangCoopOnly = CreateConVar("arang_director_coop_only", "1", "Set Arang Director is active on Coop Mode only", 262400, false, 0.0, false, 0.0);
+	HCvarArangStartDelay = CreateConVar("arang_director_start_delay", "30", "Set Arang Director Starting Delay To Release Mob", 262144, false, 0.0, false, 0.0);
+	HCvarArangSettings = CreateConVar("arang_director_settings", "", "Set Game Settings by Arang Director", 262144, false, 0.0, false, 0.0);
+	HCvarArangCommonLimit = CreateConVar("arang_director_common_infected", "50", "Set Common Limit", 262144, false, 0.0, false, 0.0);
+	HCvarArangCommonLimitMax = CreateConVar("arang_director_common_infected_max", "60", "Set Common Limit Max", 262144, false, 0.0, false, 0.0);
+	HCvarArangFinaleBosses = CreateConVar("arang_director_finalebosses_enabled", "1", "Aranging Director will spawn bosses when finale", 262144, false, 0.0, false, 0.0);
+	HCvarArangInvisibleWitchPercent = CreateConVar("arang_director_invisible_witch_percentage", "15", "Invisible witch percentage (0-100)", 262144, false, 0.0, false, 0.0);
+	HCvarArangSuperTankHealth = CreateConVar("arang_director_supertank_health", "50000", "Red Tank Health", 262144, false, 0.0, false, 0.0);
+	HCvarArangMegaTankHealth = CreateConVar("arang_director_megatank_health", "100000", "Purple Tank Health", 262144, false, 0.0, false, 0.0);
+	HCvarArangMaxTank = CreateConVar("arang_director_max_witches", "4", "Set Maximum Tank can spawn", 262144, false, 0.0, false, 0.0);
+	HCvarArangMaxWitch = CreateConVar("arang_director_max_witches", "22", "Set Maximum Witch can spawn", 262144, false, 0.0, false, 0.0);
+	HCvarArangMaxSingleWitch = CreateConVar("arang_director_max_singlewitches", "15", "Set Maximum Single Witch can spawn", 262144, false, 0.0, false, 0.0);
+	HCvarArangLockMob = CreateConVar("arang_director_lockmob", "0", "Lock Next Mob", 262400, false, 0.0, false, 0.0);
+	HCvarArangCommonDisabled = CreateConVar("arang_director_common_disable", "0", "Additional Mob", 262400, false, 0.0, false, 0.0);
+	HCvarArangFieldMob = CreateConVar("arang_director_fields_enabled", "1", "Set Arang Director Mega Fields is active", 262400, false, 0.0, false, 0.0);
+	Init_Healthy();
+	Init_Events();
+	return 0;
+}
+
+public OnMapStart()
+{
+	GameTime = 0;
+	PrecacheModel("models/infected/witch.mdl", true);
+	Director_Enabled(0);
+	CreateTimer(1.0, ArangDirector_Timer, any:0, 3);
+	DisplayUsage(0);
+	Init_SlowDown();
+	return 0;
+}
+
+public Init_SlowDown()
+{
+	HSpeedShoeOffs = FindSendPropOffs("CTerrorPlayer", "m_flLaggedMovementValue");
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersSlowdown[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public DisplayUsage(client)
+{
+	Display(client, 0, "\x01\x05Frozenology's ARANG Director (v%s) Service.", "2.4");
+	return 0;
+}
+
+public Action:ArangDirector_Randomize(client, args)
+{
+	Director_RandomizeWitchAnger();
+	return Action:0;
+}
+
+public L4DGameMode()
+{
+	new Handle:HCVarNoHumanZombies = FindConVar("director_no_human_zombies");
+	if (HCVarNoHumanZombies)
+	{
+		new var1;
+		if (GetConVarBool(HCVarNoHumanZombies))
+		{
+			var1 = 1;
+		}
+		else
+		{
+			var1 = 2;
+		}
+		return var1;
+	}
+	new HCVarGameMode = FindConVar("mp_gamemode");
+	if (HCVarGameMode)
+	{
+		decl String:StrMode[16];
+		GetConVarString(HCVarGameMode, StrMode, 16);
+		if (StrContains(StrMode, "versus", false) != -1)
+		{
+			return 2;
+		}
+		if (StrContains(StrMode, "survival", false) != -1)
+		{
+			return 3;
+		}
+		if (StrContains(StrMode, "coop", false) != -1)
+		{
+			return 1;
+		}
+		if (StrContains(StrMode, "realism", false) != -1)
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
+
+public Reset_Settings()
+{
+	ResetConVar(FindConVar("z_common_limit"), true, false);
+	ResetConVar(FindConVar("z_background_limit"), true, false);
+	ResetConVar(FindConVar("z_mob_spawn_max_size"), true, false);
+	ResetConVar(FindConVar("z_mob_spawn_min_size"), true, false);
+	ResetConVar(FindConVar("tongue_start_pull_delay"), false, false);
+	ResetConVar(FindConVar("tongue_victim_acceleration"), true, false);
+	ResetConVar(FindConVar("tongue_range"), true, false);
+	ResetConVar(FindConVar("z_gas_speed"), true, false);
+	ResetConVar(FindConVar("z_exploding_speed"), true, false);
+	return 0;
+}
+
+public Init_PrepareSettings()
+{
+	Director_RandomizeCommonLimit();
+	return 0;
+}
+
+public Director_RandomizeCommonLimit()
+{
+	SetConVarInt(FindConVar("z_common_limit"), GetRandomInt(GetConVarInt(HCvarArangCommonLimit), GetConVarInt(HCvarArangCommonLimitMax)), false, false);
+	SetConVarInt(FindConVar("z_background_limit"), GetConVarInt(HCvarArangCommonLimit), false, false);
+	return 0;
+}
+
+public Director_RandomizeWitchAnger()
+{
+	new Float:AngerRate = float(GetRandomInt(0, 6)) / 10 + 0.2;
+	SetConVarFloat(FindConVar("z_witch_anger_rate"), AngerRate, false, false);
+	return 0;
+}
+
+public Director_ResetWitches(Respawn)
+{
+	new LastWitchesCount = WitchesCount;
+	ExecCommand(0, "ent_remove_all witch");
+	WitchesCount = 0;
+	LastWitchTime = -1;
+	if (Respawn)
+	{
+		DirectorSpawn_Witch(LastWitchesCount);
+	}
+	return 0;
+}
+
+public Director_Enabled(En)
+{
+	new Enabled = En;
+	if (GetConVarBool(HCvarArangCoopOnly))
+	{
+		if (L4DGameMode() != 1)
+		{
+			Enabled = 0;
+		}
+	}
+	if (Enabled)
+	{
+		if (!IsDirectorEnabled)
+		{
+			RoundTime = 0;
+			IsDirectorEnabled = 1;
+			Init_PrepareSettings();
+			Director_ResetStates();
+		}
+	}
+	else
+	{
+		IsDirectorEnabled = 0;
+		Reset_Settings();
+		Director_ArangPanicEvent(0);
+		Director_ResetStates();
+	}
+	return 0;
+}
+
+public Director_ResetStates()
+{
+	FinaleBossesEnabled = GetConVarBool(HCvarArangFinaleBosses);
+	IsNonSurvivorSueside = 0;
+	IsArangFinale = 0;
+	MaxWitch = GetConVarBool(HCvarArangMaxWitch);
+	MaxSingleWitch = GetConVarBool(HCvarArangMaxSingleWitch);
+	LastMobTime = 0;
+	CurBossTime = 0;
+	CurMobTime = 0;
+	NextMobTime = GetRandomInt(15, 30) + GetConVarInt(HCvarArangStartDelay);
+	SuggMobType = -1;
+	LastMobTypeCount = 0;
+	SuperTankHealth1 = GetConVarInt(HCvarArangSuperTankHealth);
+	SuperTankHealth2 = GetConVarInt(HCvarArangMegaTankHealth);
+	BossSpawnRetry = 0;
+	SurvivorsCount = 0;
+	WitchKilledFreq = 0;
+	WitchesCount = 0;
+	TanksCount = 0;
+	FinaleTanksCount = 0;
+	WitchFieldCount = 0;
+	TankFieldCount = 0;
+	SpamFieldCount = 0;
+	SuperTankCount = 0;
+	TankAddMobTime = 30;
+	TankSubMobTime = 0;
+	TankAddHealth = 0;
+	LastWitchTime = -1;
+	return 0;
+}
+
+public Director_ArangPanicEvent(En)
+{
+	new var1;
+	if (En && !IsArangPanicEvent)
+	{
+		if (RandomChance(60))
+		{
+			DirectorSpawn_Tank(1);
+		}
+		if (RandomChance(60))
+		{
+			DirectorSpawn_Mob();
+		}
+	}
+	IsArangPanicEvent = En;
+	return 0;
+}
+
+public Action:ArangDirector_Timer(Handle:timer)
+{
+	if (IsDirectorEnabled)
+	{
+		if (!GetConVarBool(HCvarArangActive))
+		{
+			Director_Enabled(0);
+		}
+		ArangDirector_Think();
+	}
+	return Action:0;
+}
+
+public Action:ArangDirector_Think()
+{
+	SurvivorsAvgHealth = 0;
+	SurvivorsGreenCount = 0;
+	SurvivorsYellowCount = 0;
+	SurvivorsRedCount = 0;
+	SurvivorsCriticalCount = 0;
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			new String:ClientClass[256];
+			GetClientModel(Index, ClientClass, 255);
+			if (StrContains(ClientClass, "survivor", false) != -1)
+			{
+				new CurHealth = AbilityGetPlayerHealth(Index);
+				SurvivorsAvgHealth = CurHealth + SurvivorsAvgHealth;
+				if (CurHealth >= 60)
+				{
+					SurvivorsGreenCount = SurvivorsGreenCount + 1;
+				}
+				else
+				{
+					if (CurHealth >= 40)
+					{
+						SurvivorsYellowCount = SurvivorsYellowCount + 1;
+					}
+					if (CurHealth >= 20)
+					{
+						SurvivorsRedCount = SurvivorsRedCount + 1;
+					}
+					SurvivorsCriticalCount = SurvivorsCriticalCount + 1;
+				}
+			}
+		}
+		Index++;
+	}
+	SurvivorsAvgHealth = SurvivorsAvgHealth / 4;
+	SurvivorsCount = SurvivorsYellowCount + SurvivorsGreenCount + SurvivorsRedCount + SurvivorsCriticalCount;
+	ArangDirector_CalculateForce();
+	GameTime = GameTime + 1;
+	RoundTime = RoundTime + 1;
+	return Action:0;
+}
+
+public Action:ArangDirector_Status(client, args)
+{
+	new var1;
+	if (IsArangFinale)
+	{
+		var1 = 2860;
+	}
+	else
+	{
+		var1 = 2868;
+	}
+	new var2;
+	if (IsArangPanicEvent)
+	{
+		var2 = 2848;
+	}
+	else
+	{
+		var2 = 2856;
+	}
+	new var3;
+	if (IsDirectorEnabled)
+	{
+		var3 = 2824;
+	}
+	else
+	{
+		var3 = 2832;
+	}
+	Display(client, 3, "\x01\x04Arang Director %s \x01 %s %s %s | Game %i Round %i ", "2.4", var3, var2, var1, GameTime, RoundTime);
+	Display(client, 3, "MobTime %i/ %i | MobType %i (%i) | SuggType %i", CurMobTime, NextMobTime, LastMobType, LastMobTypeCount, SuggMobType);
+	Display(client, 3, "Survivor AVG %i GYRC %i %i %i %i", SurvivorsAvgHealth, SurvivorsGreenCount, SurvivorsYellowCount, SurvivorsRedCount, SurvivorsCriticalCount);
+	Display(client, 3, "Count W %i (WT %i) T %i WF %i TF %i SF %i (RT %i)", WitchesCount, LastWitchTime, TanksCount, WitchFieldCount, TankFieldCount, SpamFieldCount, BossSpawnRetry);
+	return Action:3;
+}
+
+public Action:ArangDirector_Spawn(client, args)
+{
+	DirectorSpawn_Mob();
+	return Action:3;
+}
+
+public Action:ArangDirector_SuggMobType(client, args)
+{
+	decl String:StrMobType[16];
+	decl String:StrNextTime[16];
+	GetCmdArg(1, StrMobType, 16);
+	GetCmdArg(2, StrNextTime, 16);
+	SuggMobType = StringToInt(StrMobType, 10);
+	NextMobTime = StringToInt(StrNextTime, 10);
+	if (0 >= NextMobTime)
+	{
+		NextMobTime = 1;
+	}
+	return Action:3;
+}
+
+public Action:ArangDirector_ForceMob(client, args)
+{
+	decl String:StrMobType[16];
+	GetCmdArg(1, StrMobType, 16);
+	ArangDirector_SendForce(StringToInt(StrMobType, 10));
+	return Action:3;
+}
+
+public ArangDirector_CalculateForce()
+{
+	if (CurMobTime >= NextMobTime)
+	{
+		new MobType = SuggMobType;
+		new RoundTimeHandicap = Handicap * 2;
+		if (0 > MobType)
+		{
+			MobType = GetRandomInt(0, 9);
+			if (MobType > 6)
+			{
+				MobType += 20;
+			}
+			if (RandomChance(3))
+			{
+				MobType = 5;
+			}
+		}
+		if (0 < LastWitchTime)
+		{
+			if (GameTime - LastWitchTime > 60)
+			{
+				Director_ResetWitches(1);
+			}
+		}
+		if (RandomChance(5))
+		{
+			Director_RandomizeCommonLimit();
+		}
+		if (RandomChance(20))
+		{
+			Director_RandomizeWitchAnger();
+		}
+		if (LastMobTypeCount >= 3)
+		{
+			MobType = GetRandomInt(1, 4);
+			if (!MobType)
+			{
+				MobType = GetRandomInt(1, 6);
+			}
+		}
+		new LockMob = GetConVarInt(HCvarArangLockMob);
+		if (0 < LockMob)
+		{
+			MobType = LockMob;
+		}
+		if (GetConVarBool(HCvarArangFieldMob))
+		{
+			new var1;
+			if (RoundTime >= 360 - RoundTimeHandicap && SurvivorsAvgHealth >= 75)
+			{
+				new MaxWitchFields = SurvivorsCount + -4 + Handicap / 20 + 2;
+				new MaxTankFields = SurvivorsCount + -4 + Handicap / 20 + 2;
+				new MaxSpamFields = SurvivorsCount + -4 + Handicap / 20 + 2;
+				new var2;
+				if (RandomChance(20) && WitchFieldCount < MaxWitchFields)
+				{
+					MobType = 7;
+				}
+				new var3;
+				if (RoundTime >= 420 - RoundTimeHandicap && TankFieldCount < MaxTankFields && SurvivorsAvgHealth >= 80)
+				{
+					if (RandomChance(15))
+					{
+						MobType = 8;
+					}
+				}
+				new var4;
+				if (RoundTime >= 480 - RoundTimeHandicap && SpamFieldCount < MaxSpamFields && SurvivorsAvgHealth >= 85)
+				{
+					if (RandomChance(15))
+					{
+						MobType = 9;
+					}
+				}
+				new var5;
+				if (RoundTime >= 540 - RoundTimeHandicap && SuperTankCount < 2 && SurvivorsAvgHealth >= 85)
+				{
+					if (RandomChance(30))
+					{
+						MobType = 19;
+						SuperTankCount = SuperTankCount + 1;
+					}
+				}
+			}
+		}
+		ArangDirector_SendForce(MobType);
+		LastMobTime = CurMobTime;
+		CurMobTime = 0;
+	}
+	else
+	{
+		CurMobTime = CurMobTime + 1;
+	}
+	return 0;
+}
+
+public ArangDirector_SendForce(MobType)
+{
+	SuggMobType = -1;
+	switch (MobType)
+	{
+		case 0:
+		{
+			NextMobTime = GetRandomInt(3, 12);
+		}
+		case 1:
+		{
+			if (RandomChance(20))
+			{
+				SuggMobType = 1;
+			}
+			NextMobTime = GetRandomInt(35, 50);
+			DirectorSpawn_Mob();
+		}
+		case 2:
+		{
+			DirectorSpawn_Boomer(GetRandomInt(1, 4));
+			if (RandomChance(10))
+			{
+				DirectorSpawn_Mob();
+				NextMobTime = NextMobTime + 15;
+			}
+			NextMobTime = GetRandomInt(15, 30);
+		}
+		case 3:
+		{
+			DirectorSpawn_Hunter(GetRandomInt(1, 3));
+			NextMobTime = GetRandomInt(15, 30);
+		}
+		case 4:
+		{
+			DirectorSpawn_Smoker(GetRandomInt(1, 3));
+			NextMobTime = GetRandomInt(15, 30);
+		}
+		case 5:
+		{
+			if (240 - Handicap <= RoundTime)
+			{
+				TankAddMobTime = 30;
+				TankSubMobTime = Handicap + 10;
+				if (RandomChance(50))
+				{
+					NextMobTime = GetRandomInt(40, 60);
+					DirectorSpawn_Tank(1);
+					new var7;
+					if (SurvivorsGreenCount >= 2 && RandomChance(50))
+					{
+						DirectorSpawn_Tank(1);
+						new var8;
+						if (SurvivorsAvgHealth >= 70 && RandomChance(20))
+						{
+							DirectorSpawn_Tank(1);
+						}
+					}
+				}
+				SuggMobType = -1;
+				NextMobTime = 5;
+			}
+		}
+		case 6:
+		{
+			if (WitchesCount <= MaxSingleWitch)
+			{
+				new MaxRand = Handicap / 10 + 3;
+				DirectorSpawn_Witch(GetRandomInt(1, MaxRand));
+				NextMobTime = GetRandomInt(15, 35);
+			}
+			else
+			{
+				SuggMobType = 6;
+				NextMobTime = 0;
+			}
+		}
+		case 7:
+		{
+			if (WitchesCount <= MaxWitch)
+			{
+				DirectorSpawn_Witch(GetRandomInt(12, 16));
+				NextMobTime = GetRandomInt(60, 80);
+				WitchFieldCount = WitchFieldCount + 1;
+			}
+			else
+			{
+				SuggMobType = -1;
+				NextMobTime = 0;
+			}
+		}
+		case 8:
+		{
+			TankAddMobTime = 40;
+			TankSubMobTime = Handicap + 30;
+			ArangDirector_NonSurvivorSuesid();
+			DirectorSpawn_Tank(4);
+			new var6;
+			if (RandomChance(50))
+			{
+				var6 = 8;
+			}
+			else
+			{
+				var6 = -1;
+			}
+			SuggMobType = var6;
+			NextMobTime = GetRandomInt(40, 60);
+			TankFieldCount = TankFieldCount + 1;
+		}
+		case 9:
+		{
+			TankAddMobTime = 30;
+			TankSubMobTime = Handicap + 10;
+			ArangDirector_NonSurvivorSuesid();
+			DirectorSpawn_Tank(4);
+			DirectorSpawn_Witch(GetRandomInt(14, 20));
+			DirectorSpawn_Mob();
+			new var5;
+			if (RandomChance(50))
+			{
+				var5 = 8;
+			}
+			else
+			{
+				var5 = 11;
+			}
+			SuggMobType = var5;
+			SpamFieldCount = SpamFieldCount + 1;
+			NextMobTime = GetRandomInt(60, 80);
+		}
+		case 11:
+		{
+			if (WitchesCount <= MaxWitch)
+			{
+				DirectorSpawn_Witch(GetRandomInt(14, 20));
+				new var4;
+				if (RandomChance(50))
+				{
+					var4 = 11;
+				}
+				else
+				{
+					var4 = -1;
+				}
+				SuggMobType = var4;
+				NextMobTime = GetRandomInt(60, 80);
+				WitchFieldCount = WitchFieldCount + 1;
+			}
+			else
+			{
+				SuggMobType = -1;
+				NextMobTime = 0;
+			}
+		}
+		case 12:
+		{
+			if (RandomChance(70))
+			{
+				DirectorSpawn_Boomer(GetRandomInt(1, 4));
+			}
+			else
+			{
+				if (GameTime - LastWitchTime > 45)
+				{
+					Director_ResetWitches(1);
+				}
+				if (WitchesCount <= MaxSingleWitch)
+				{
+					DirectorSpawn_Witch(GetRandomInt(1, 3));
+				}
+			}
+			NextMobTime = GetRandomInt(15, 25);
+		}
+		case 14:
+		{
+			if (!IsArangFinale)
+			{
+				TankAddHealth = 30000;
+			}
+			DirectorSpawn_Smoker(GetRandomInt(1, 4));
+			if (RandomChance(50))
+			{
+				DirectorSpawn_Mob();
+			}
+			NextMobTime = GetRandomInt(15, 25);
+		}
+		case 17:
+		{
+			new MinTank = 1;
+			if (GameTime > 160)
+			{
+				MinTank = 2;
+			}
+			if (GameTime > 240)
+			{
+				MinTank = 3;
+			}
+			if (TanksCount < MinTank)
+			{
+				TankAddMobTime = 120;
+				TankSubMobTime = Handicap;
+				TankAddHealth = SurvivorsAvgHealth * 100 + SuperTankHealth1;
+				if (TankAddHealth > SuperTankHealth2)
+				{
+					TankAddHealth = SuperTankHealth2;
+				}
+				DirectorSpawn_SuperTank(TankAddHealth, 1);
+			}
+			NextMobTime = GetRandomInt(60, 80);
+		}
+		case 18:
+		{
+			TankAddMobTime = 40;
+			TankSubMobTime = Handicap + 30;
+			DirectorSpawn_Tank(1);
+			new var1;
+			if (SurvivorsAvgHealth >= 40 && RoundTime > 60)
+			{
+				DirectorSpawn_Tank(1);
+				new var2;
+				if (SurvivorsAvgHealth >= 50 && RoundTime > 80)
+				{
+					DirectorSpawn_Tank(1);
+					new var3;
+					if (SurvivorsAvgHealth >= 70 && RoundTime > 90)
+					{
+						DirectorSpawn_Tank(1);
+					}
+				}
+			}
+			NextMobTime = GetRandomInt(20, 40);
+		}
+		case 19:
+		{
+			TankAddMobTime = 120 - Handicap;
+			TankSubMobTime = Handicap;
+			TankAddHealth = SurvivorsAvgHealth * 100 + SuperTankHealth1;
+			if (TankAddHealth > SuperTankHealth2)
+			{
+				TankAddHealth = SuperTankHealth2;
+			}
+			DirectorSpawn_SuperTank(TankAddHealth, 1);
+			NextMobTime = GetRandomInt(60, 80);
+		}
+		case 27:
+		{
+			DirectorSpawn_Charger(GetRandomInt(1, 4));
+			NextMobTime = GetRandomInt(15, 30);
+		}
+		case 28:
+		{
+			DirectorSpawn_Jockey(GetRandomInt(1, 3));
+			NextMobTime = GetRandomInt(15, 30);
+		}
+		case 29:
+		{
+			DirectorSpawn_Spitter(GetRandomInt(2, 4));
+			NextMobTime = GetRandomInt(15, 30);
+		}
+		default:
+		{
+		}
+	}
+	new var10;
+	if (SurvivorsAvgHealth >= 70 || (SurvivorsGreenCount >= 4 && RandomChance(75)))
+	{
+		NextMobTime = NextMobTime - GetRandomInt(4, 16);
+	}
+	else
+	{
+		new var11;
+		if (SurvivorsGreenCount >= 2 && RandomChance(50))
+		{
+			NextMobTime = NextMobTime - GetRandomInt(0, 8);
+		}
+		if (SurvivorsRedCount >= 2)
+		{
+			NextMobTime = GetRandomInt(6, 18) + SurvivorsRedCount * 8 + NextMobTime;
+		}
+	}
+	if (!IsArangFinale)
+	{
+		Handicap = GetConVarInt(HCvarArangHandicap);
+		NextMobTime = NextMobTime - Handicap;
+		if (IsArangPanicEvent)
+		{
+			if (RandomChance(50))
+			{
+				DirectorSpawn_Tank(1);
+			}
+			if (RandomChance(50))
+			{
+				DirectorSpawn_Mob();
+			}
+			NextMobTime = NextMobTime / 2;
+		}
+	}
+	if (MobType == LastMobType)
+	{
+		LastMobTypeCount = LastMobTypeCount + 1;
+	}
+	else
+	{
+		LastMobTypeCount = 0;
+	}
+	LastMobType = MobType;
+	return 0;
+}
+
+public ArangDirector_NonSurvivorCount()
+{
+	new String:CurClass[256];
+	new Cnt;
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			GetClientModel(Index, CurClass, 255);
+			if (StrContains(CurClass, "survivor", false) == -1)
+			{
+				Cnt++;
+			}
+		}
+		Index++;
+	}
+	return Cnt;
+}
+
+public ArangDirector_NonSurvivorSuesid()
+{
+	new String:CurClass[256];
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			GetClientModel(Index, CurClass, 255);
+			if (StrContains(CurClass, "survivor", false) == -1)
+			{
+				ForcePlayerSuicide(Index);
+			}
+		}
+		Index++;
+	}
+	IsNonSurvivorSueside = 1;
+	return 0;
+}
+
+public ArangDirector_PlayerClassKill(String:Name[])
+{
+	new String:CurClass[256];
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			GetClientModel(Index, CurClass, 255);
+			if (StrContains(CurClass, Name, false) != -1)
+			{
+				ForcePlayerSuicide(Index);
+			}
+		}
+		Index++;
+	}
+	return 0;
+}
+
+public DirectorSpawn_Mob()
+{
+	if (!IsDirectorEnabled)
+	{
+		return 0;
+	}
+	if (IsArangFinale)
+	{
+		if (RandomChance(50))
+		{
+			return 0;
+		}
+	}
+	if (!GetConVarBool(HCvarArangCommonDisabled))
+	{
+		ExecCommand(0, "z_spawn mob");
+	}
+	return 0;
+}
+
+public DirectorSpawn_Boomer(Spawns)
+{
+	DirectorSpawn_Char("boomer", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Hunter(Spawns)
+{
+	DirectorSpawn_Char("hunter", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Smoker(Spawns)
+{
+	DirectorSpawn_Char("smoker", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Charger(Spawns)
+{
+	DirectorSpawn_Char("charger", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Jockey(Spawns)
+{
+	DirectorSpawn_Char("jockey", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Spitter(Spawns)
+{
+	DirectorSpawn_Char("spitter", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Witch(Spawns)
+{
+	ExecSpawnCommand(0, "z_spawn witch auto", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Tank(Spawns)
+{
+	if (HCvarArangMaxTank)
+	{
+		if (GetConVarInt(HCvarArangMaxTank) < TanksCount)
+		{
+			return 0;
+		}
+	}
+	DirectorSpawn_Char("tank", Spawns);
+	return 0;
+}
+
+public DirectorSpawn_SuperTank(Health, Spawns)
+{
+	TankAddHealth = Health;
+	DirectorSpawn_Tank(Spawns);
+	return 0;
+}
+
+public DirectorSpawn_Char(String:Name[], Spawns)
+{
+	if (!IsDirectorEnabled)
+	{
+		return 0;
+	}
+	if (ArangDirector_NonSurvivorCount() >= 4)
+	{
+		BossSpawnRetry += 1;
+	}
+	else
+	{
+		BossSpawnRetry = 0;
+	}
+	if (BossSpawnRetry >= 4)
+	{
+		ArangDirector_NonSurvivorSuesid();
+		BossSpawnRetry = 0;
+	}
+	new String:Command[256];
+	Format(Command, 255, "z_spawn %s auto", Name);
+	if (IsNonSurvivorSueside)
+	{
+		ExecSpawnCommandDelay(0, Command, Spawns, 1092616192);
+		IsNonSurvivorSueside = 1;
+	}
+	else
+	{
+		ExecSpawnCommand(0, Command, Spawns);
+	}
+	return 0;
+}
+
+public bool:RandomChance(Chances)
+{
+	return GetRandomInt(0, 100) < Chances;
+}
+
+public SetHookEvent(String:name[], EventHook:callback)
+{
+	if (HookEventEx(name, callback, EventHookMode:1))
+	{
+		PrintToServer("Captured Event %s .", name);
+	}
+	else
+	{
+		PrintToServer("Unable to Captured Event %s .", name);
+	}
+	return 0;
+}
+
+public Init_Events()
+{
+	SetHookEvent("infected_death", Event_InfectedDeath);
+	SetHookEvent("infected_hurt", Event_InfectedHurt);
+	SetHookEvent("player_hurt", Event_PlayerHurt);
+	SetHookEvent("player_death", Event_PlayerDeath);
+	SetHookEvent("player_hurt", Event_PlayerHurt);
+	SetHookEvent("player_death", Event_PlayerDeath);
+	SetHookEvent("tank_spawn", Event_TankSpawn);
+	SetHookEvent("tank_killed", Event_TankKilled);
+	SetHookEvent("witch_spawn", Event_WitchSpawn);
+	SetHookEvent("witch_killed", Event_WitchKilled);
+	SetHookEvent("witch_harasser_set", Event_WitchHarasser);
+	SetHookEvent("mission_lost", Event_MissionLost);
+	SetHookEvent("player_incapacitated", Event_PlayerIncap);
+	SetHookEvent("pills_used", Event_PlayerPillsUsed);
+	SetHookEvent("heal_success", Event_PlayerHealSuccess);
+	SetHookEvent("player_now_it", Event_PlayerBoomerIt);
+	SetHookEvent("round_start", Event_GameStart);
+	SetHookEvent("player_transitioned", Event_GameStart);
+	SetHookEvent("mission_lost", Event_MissionLost);
+	SetHookEvent("player_left_start_area", Event_PlayerStart);
+	SetHookEvent("infected_hurt", Event_InfectedHurt);
+	SetHookEvent("door_unlocked", Event_PlayerDoorUnlocked);
+	SetHookEvent("player_entered_checkpoint", Event_PlayerEnteredCheckPoint);
+	SetHookEvent("finale_start", Event_FinaleStart);
+	SetHookEvent("finale_escape_start", Event_FinaleEscapeStart);
+	return 0;
+}
+
+public ConVar_DifficultyChanged(Handle:convar, String:oldValue[], String:newValue[])
+{
+	return 3;
+}
+
+public Action:Event_GameStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Director_Enabled(0);
+	return Action:0;
+}
+
+public Action:Event_MissionLost(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Director_Enabled(0);
+	return Action:0;
+}
+
+public Action:Event_PlayerDoorUnlocked(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (GetEventBool(event, "checkpoint"))
+	{
+		Director_Enabled(1);
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Director_Enabled(1);
+	return Action:0;
+}
+
+public Action:Event_PlayerEnteredCheckPoint(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new String:DoorName[64];
+	GetEventString(event, "doorname", DoorName, 64);
+	if (StrContains(DoorName, "entrance", false) != -1)
+	{
+		Director_ArangPanicEvent(1);
+	}
+	return Action:0;
+}
+
+public Action:Event_FinaleEscapeStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	if (RandomChance(50))
+	{
+		ArangDirector_SendForce(9);
+	}
+	return Action:0;
+}
+
+public Action:Event_DisplayUsage(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	return Action:0;
+}
+
+public Action:Event_WitchSpawn(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	new InvPercent = GetConVarInt(HCvarArangInvisibleWitchPercent);
+	WitchesCount = WitchesCount + 1;
+	if (0 < InvPercent)
+	{
+		new WitchEnt = GetEventInt(event, "witchid");
+		if (RandomChance(InvPercent))
+		{
+			SetEntInvisible(WitchEnt, 32);
+		}
+	}
+	LastWitchTime = GameTime;
+	return Action:0;
+}
+
+public SetEntInvisible(ent, alpha)
+{
+	if (IsValidEntity(ent))
+	{
+		SetEntityRenderColor(ent, 255, 255, 255, alpha);
+		SetEntityRenderFx(ent, RenderFx:16);
+	}
+	return 0;
+}
+
+public Action:Event_WitchHarasser(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	LastWitchTime = LastWitchTime + 15;
+	return Action:0;
+}
+
+public Action:Event_WitchKilled(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	if (0 < WitchesCount)
+	{
+		WitchesCount = WitchesCount + -1;
+		if (RandomChance(30))
+		{
+			DirectorSpawn_Mob();
+		}
+		LastWitchTime = LastWitchTime + 15;
+		if (LastWitchTime - GameTime > 60)
+		{
+			LastWitchTime = GameTime;
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_TankSpawn(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	new TankRegen;
+	new TankId = GetClientOfUserId(GetEventInt(event, "userid"));
+	new TankEnt = GetEventInt(event, "tankid");
+	TanksCount = TanksCount + 1;
+	NextMobTime = TankAddMobTime + NextMobTime;
+	if (IsArangFinale)
+	{
+		FinaleTanksCount = FinaleTanksCount + 1;
+	}
+	if (FinaleBossesEnabled)
+	{
+		if (FinaleTanksCount == 1)
+		{
+			TankAddHealth = SuperTankHealth1;
+			NextMobTime = NextMobTime + 80;
+			if (RandomChance(50))
+			{
+				SetEntInvisible(TankEnt, 32);
+			}
+			SetPlayerSpeedAddon(TankEnt, 2.0);
+		}
+		if (FinaleTanksCount == 2)
+		{
+			TankRegen = 1;
+			TankAddHealth = SuperTankHealth2;
+			NextMobTime = NextMobTime + 120;
+			new Tanks = Handicap / 10;
+			if (0 < Tanks)
+			{
+				DirectorSpawn_Tank(Tanks);
+			}
+		}
+	}
+	if (0 < TankAddHealth)
+	{
+		new CurTankMaxHealth = AbilityGetPlayerMaxHealth(TankId);
+		AbilitySetPlayerMaxHealth(TankId, TankAddHealth + CurTankMaxHealth);
+		AbilitySetPlayerHealthAddon(TankId, TankAddHealth);
+		if (TankRegen)
+		{
+			CreateTimer(1.0, Timer_TankPurpleTimer, TankId, 3);
+		}
+		else
+		{
+			CreateTimer(1.0, Timer_TankRedTimer, TankId, 3);
+		}
+		TankAddHealth = 0;
+	}
+	if (RandomChance(5))
+	{
+		DirectorSpawn_Mob();
+		NextMobTime = NextMobTime + 10;
+	}
+	return Action:0;
+}
+
+public Action:Event_TankKilled(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	if (0 < TanksCount)
+	{
+		TanksCount = TanksCount + -1;
+	}
+	NextMobTime = NextMobTime - TankSubMobTime;
+	if (RandomChance(50))
+	{
+		DirectorSpawn_Mob();
+		NextMobTime = NextMobTime + 10;
+	}
+	return Action:0;
+}
+
+public Action:Timer_TankRedTimer(Handle:timer, any:value)
+{
+	new TankId = value;
+	if (!IsValidEntity(TankId))
+	{
+		return Action:4;
+	}
+	if (!IsClientInGame(TankId))
+	{
+		return Action:4;
+	}
+	new Health = AbilityGetPlayerHealth(TankId);
+	SetEntityRenderColor(TankId, 255, 168, 168, 255);
+	return Action:0;
+}
+
+public Action:Timer_TankPurpleTimer(Handle:timer, any:value)
+{
+	new TankId = value;
+	if (!IsValidEntity(TankId))
+	{
+		return Action:4;
+	}
+	if (!IsClientInGame(TankId))
+	{
+		return Action:4;
+	}
+	new Health = AbilityGetPlayerHealth(TankId);
+	if (Health < 10000)
+	{
+		AbilitySetPlayerHealthAddon(TankId, 20);
+	}
+	new CurCol = RoundToNearest(Health * 64 / 10000);
+	SetEntityRenderColor(TankId, 255, CurCol + 168, 255, 255);
+	return Action:0;
+}
+
+public Action:Event_PlayerHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new var1;
+	if (client && attacker)
+	{
+		new String:VictimClass[256];
+		new String:AttackerClass[256];
+		GetClientModel(client, VictimClass, 255);
+		GetClientModel(attacker, AttackerClass, 255);
+		if (StrContains(AttackerClass, "survivor", false) != -1)
+		{
+			if (StrContains(VictimClass, "hunter", false) != -1)
+			{
+				NextMobTime = NextMobTime + -14;
+			}
+			else
+			{
+				if (StrContains(VictimClass, "smoker", false) != -1)
+				{
+					NextMobTime = NextMobTime + -12;
+				}
+				if (StrContains(VictimClass, "boomer", false) != -1)
+				{
+					NextMobTime = NextMobTime + -4;
+				}
+				if (StrContains(VictimClass, "charger", false) != -1)
+				{
+					NextMobTime = NextMobTime + -8;
+				}
+				if (StrContains(VictimClass, "spitter", false) != -1)
+				{
+					NextMobTime = NextMobTime + -4;
+				}
+				if (StrContains(VictimClass, "jockey", false) != -1)
+				{
+					NextMobTime = NextMobTime + -12;
+				}
+				if (StrContains(VictimClass, "hulk", false) != -1)
+				{
+				}
+			}
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerBoomerIt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		return Action:0;
+	}
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	PlayersSlowdown[client] = 1;
+	if (IsValidEntity(client))
+	{
+		SetPlayerSpeedAddon(client, -0.5);
+		new Float:VomitTime = GetConVarFloat(FindConVar("z_vomit_duration")) + GetConVarFloat(FindConVar("z_vomit_fade_start")) + GetConVarFloat(FindConVar("z_vomit_fade_duration"));
+		CreateTimer(VomitTime, PlayerBoomerNolongerIt, client, 2);
+	}
+	return Action:0;
+}
+
+public Action:PlayerBoomerNolongerIt(Handle:timer, any:client)
+{
+	if (IsValidEntity(client))
+	{
+		PlayersSlowdown[client] = 0;
+		SetPlayerSpeedAddon(client, 0.5);
+	}
+	return Action:4;
+}
+
+public SetPlayerSpeedAddon(client, Float:Addon)
+{
+	new Float:Speed = GetEntDataFloat(client, HSpeedShoeOffs);
+	Speed += Addon;
+	SetEntDataFloat(client, HSpeedShoeOffs, Speed, false);
+	return 0;
+}
+
+public Action:Event_PlayerPillsUsed(Handle:event, String:name[], bool:dontBroadcast)
+{
+	NextMobTime = NextMobTime - GetRandomInt(4, 8);
+	return Action:0;
+}
+
+public Action:Event_PlayerHealSuccess(Handle:event, String:name[], bool:dontBroadcast)
+{
+	NextMobTime = NextMobTime - GetRandomInt(8, 16);
+	return Action:0;
+}
+
+public Action:Event_PlayerIncap(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new var1;
+	if (client && attacker)
+	{
+		new String:VictimClass[256];
+		new String:AttackerClass[256];
+		GetClientModel(client, VictimClass, 255);
+		GetClientModel(attacker, AttackerClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			NextMobTime = GetRandomInt(20, 30) + NextMobTime;
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_InfectedHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (!IsDirectorEnabled)
+	{
+		Director_Enabled(1);
+	}
+	return Action:0;
+}
+
+public Action:Event_InfectedDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if (attacker)
+	{
+		new String:AttackerClass[256];
+		GetClientModel(attacker, AttackerClass, 255);
+	}
+	return Action:0;
+}
+
+public Action:Event_FinaleStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Director_ResetWitches(0);
+	IsArangFinale = 1;
+	FinaleTanksCount = 0;
+	CurMobTime = 0;
+	NextMobTime = NextMobTime + 150;
+	return Action:0;
+}
+
+public Init_Healthy()
+{
+	HPlayerIsIncapOffs = FindSendPropInfo("CTerrorPlayer", "m_isIncapacitated", 0, 0, 0);
+	HPlayerHealthOffs = FindSendPropInfo("CTerrorPlayer", "m_iHealth", 0, 0, 0);
+	HPlayerMaxHealthOffs = FindSendPropInfo("CTerrorPlayer", "m_iMaxHealth", 0, 0, 0);
+	return 0;
+}
+
+public AbilityGetPlayerHealth(client)
+{
+	if (GetEntData(client, HPlayerIsIncapOffs, 4))
+	{
+		return 1;
+	}
+	return GetEntData(client, HPlayerHealthOffs, 4);
+}
+
+public AbilitySetPlayerHealth(client, Health)
+{
+	SetEntData(client, HPlayerHealthOffs, Health, 4, false);
+	return 0;
+}
+
+public AbilitySetPlayerHealthAddon(client, Health)
+{
+	new CurMaxHealth = AbilityGetPlayerMaxHealth(client);
+	new CurHealth = AbilityGetPlayerHealth(client);
+	if (CurHealth < CurMaxHealth)
+	{
+		if (Health + CurHealth > CurMaxHealth)
+		{
+			CurHealth = CurMaxHealth;
+		}
+		else
+		{
+			CurHealth = Health + CurHealth;
+		}
+		if (0 >= CurHealth)
+		{
+			CurHealth = 1;
+		}
+		if (CurHealth <= CurMaxHealth)
+		{
+			AbilitySetPlayerHealth(client, CurHealth);
+		}
+	}
+	return CurHealth > 1;
+}
+
+public AbilityGetPlayerMaxHealth(client)
+{
+	return GetEntData(client, HPlayerMaxHealthOffs, 4);
+}
+
+public AbilitySetPlayerMaxHealth(client, Health)
+{
+	SetEntData(client, HPlayerMaxHealthOffs, Health, 4, false);
+	return 0;
+}
+
+public Display(client, Mode, String:format[])
+{
+	decl String:Buffer[192];
+	VFormat(Buffer, 192, format, 4);
+	if (client)
+	{
+		DisplayText(client, Mode, Buffer);
+	}
+	else
+	{
+		new Index = 1;
+		while (GetMaxClients() >= Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				DisplayText(Index, Mode, Buffer);
+			}
+			Index++;
+		}
+	}
+	return 0;
+}
+
+public DisplayText(client, Mode, String:Text[])
+{
+	switch (Mode)
+	{
+		case 0:
+		{
+			PrintToChat(client, Text);
+		}
+		case 1:
+		{
+			PrintHintText(client, Text);
+		}
+		case 2:
+		{
+			PrintCenterText(client, Text);
+		}
+		case 3:
+		{
+			PrintToChat(client, Text);
+		}
+		default:
+		{
+		}
+	}
+	return 0;
+}
+
+public ExecSpawnCommandDelay(clientId, String:Command[], Count, Delay)
+{
+	CurCommandCount = Count;
+	strcopy(CurCommand, 255, Command);
+	CreateTimer(Delay, ExecSpawnCommandDelay_Timer, clientId, 0);
+	return 0;
+}
+
+public Action:ExecSpawnCommandDelay_Timer(Handle:timer, any:client)
+{
+	ExecSpawnCommand(client, CurCommand, CurCommandCount);
+	return Action:4;
+}
+
+public ExecSpawnCommand(clientId, String:Command[], Count)
+{
+	new Cnt;
+	while (Cnt < Count)
+	{
+		ExecCommand(clientId, Command);
+		Cnt++;
+	}
+	return 0;
+}
+
+public ExecCommand(clientId, String:InpCommand[])
+{
+	ServerExecute();
+	new String:Commands[1][256];
+	Commands[0] = "\x04";
+	new String:Command[256];
+	ExplodeString(InpCommand, " ", Commands, 1, 255);
+	StrCopy(Command, 255, Commands[0][Commands]);
+	new CommandFlags = GetCommandFlags(Command);
+	SetCommandFlags(Command, CommandFlags & -16385);
+	if (clientId)
+	{
+		if (IsClientInGame(clientId))
+		{
+			FakeClientCommand(clientId, InpCommand);
+		}
+	}
+	else
+	{
+		new Index = 1;
+		while (GetMaxClients() > Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				FakeClientCommand(Index, InpCommand);
+			}
+			Index++;
+		}
+	}
+	SetCommandFlags(Command, CommandFlags | 16384);
+	return 0;
+}
+

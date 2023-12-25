@@ -1,0 +1,25 @@
+L 07/15/2023 - 00:06:43: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230715.log") (Version "1.11.0.6932")
+L 07/15/2023 - 00:06:43: -------- Mapchange to c5m4_quarter --------
+L 07/15/2023 - 00:16:22: -------- Mapchange to c5m5_bridge --------
+L 07/15/2023 - 00:27:42: Log file closed.
+L 07/15/2023 - 20:35:43: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230715.log") (Version "1.11.0.6932")
+L 07/15/2023 - 20:35:43: [SM] Changed map to "Glubtastic"
+L 07/15/2023 - 20:35:44: -------- Mapchange to Glubtastic --------
+L 07/15/2023 - 20:37:56: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "3")
+L 07/15/2023 - 21:07:42: -------- Mapchange to c12m1_hilltop --------
+L 07/15/2023 - 21:09:15: [basecommands.smx] "Madame‵X<20><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "3")
+L 07/15/2023 - 21:12:56: -------- Mapchange to c12m2_traintunnel --------
+L 07/15/2023 - 21:21:45: -------- Mapchange to c12m3_bridge --------
+L 07/15/2023 - 21:29:45: -------- Mapchange to c12m4_barn --------
+L 07/15/2023 - 21:36:29: -------- Mapchange to c12m5_cornfield --------
+L 07/15/2023 - 21:50:02: -------- Mapchange to c3m1_plankcountry --------
+L 07/15/2023 - 21:52:31: [basecommands.smx] "Madame‵X<137><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "3")
+L 07/15/2023 - 22:00:57: -------- Mapchange to c3m2_swamp --------
+L 07/15/2023 - 22:09:36: -------- Mapchange to c3m3_shantytown --------
+L 07/15/2023 - 22:18:56: -------- Mapchange to c3m4_plantation --------
+L 07/15/2023 - 22:32:34: -------- Mapchange to c7m1_docks --------
+L 07/15/2023 - 22:41:09: -------- Mapchange to c7m2_barge --------
+L 07/15/2023 - 22:53:47: -------- Mapchange to c7m3_port --------
+L 07/15/2023 - 23:05:37: -------- Mapchange to c14m2_lighthouse --------
+L 07/15/2023 - 23:06:32: [basecommands.smx] "Madame‵X<337><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "3")
+L 07/15/2023 - 23:14:31: Log file closed.

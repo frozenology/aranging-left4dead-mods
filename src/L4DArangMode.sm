@@ -1,0 +1,615 @@
+public PlVers:__version =
+{
+	version = 5,
+	filevers = "1.4.0-dev",
+	date = "12/25/2009",
+	time = "17:59:47"
+};
+new Float:NULL_VECTOR[3];
+new String:NULL_STRING[4];
+public Extension:__ext_core =
+{
+	name = "Core",
+	file = "core",
+	autoload = 0,
+	required = 0,
+};
+new MaxClients;
+public Extension:__ext_sdktools =
+{
+	name = "SDKTools",
+	file = "sdktools.ext",
+	autoload = 1,
+	required = 1,
+};
+public Plugin:myinfo =
+{
+	name = "Aranging Game Mode",
+	description = "Change Game Mode",
+	author = "Frozenology",
+	version = "0.85",
+	url = "www.aranghq.com"
+};
+new HFile;
+new IsExecuted;
+new String:LastModeName[128];
+new IsVoting;
+new YesVotes;
+new NoVotes;
+new MaxVotes;
+new ClientVotes[65];
+public __ext_core_SetNTVOptional()
+{
+	MarkNativeAsOptional("GetFeatureStatus");
+	MarkNativeAsOptional("RequireFeature");
+	MarkNativeAsOptional("AddCommandListener");
+	MarkNativeAsOptional("RemoveCommandListener");
+	VerifyCoreVersion();
+	return 0;
+}
+
+StrCopy(String:dest[], destLen, String:source[])
+{
+	return strcopy(dest, destLen, source);
+}
+
+ExplodeString(String:text[], String:split[], String:buffers[][], maxStrings, maxStringLength)
+{
+	new reloc_idx;
+	new idx;
+	new total;
+	new var1;
+	if (maxStrings < 1 || split[0])
+	{
+		return 0;
+	}
+	while ((idx = SplitString(text[reloc_idx], split, buffers[total], maxStringLength)) != -1)
+	{
+		reloc_idx = idx + reloc_idx;
+		if (text[reloc_idx])
+		{
+			total++;
+			if (total >= maxStrings)
+			{
+				return total;
+			}
+		}
+		new var2;
+		if (text[reloc_idx] && total <= maxStrings + -1)
+		{
+			total++;
+			strcopy(buffers[total], maxStringLength, text[reloc_idx]);
+		}
+		return total;
+	}
+	new var2;
+	if (text[reloc_idx] && total <= maxStrings + -1)
+	{
+		total++;
+		strcopy(buffers[total], maxStringLength, text[reloc_idx]);
+	}
+	return total;
+}
+
+EmitSoundToClient(client, String:sample[], entity, channel, level, flags, Float:volume, pitch, speakerentity, Float:origin[3], Float:dir[3], bool:updatePos, Float:soundtime)
+{
+	new clients[1];
+	clients[0] = client;
+	new var1;
+	if (entity == -2)
+	{
+		var1 = client;
+	}
+	else
+	{
+		var1 = entity;
+	}
+	entity = var1;
+	EmitSound(clients, 1, sample, entity, channel, level, flags, volume, pitch, speakerentity, origin, dir, updatePos, soundtime);
+	return 0;
+}
+
+public OnPluginStart()
+{
+	HFile = 0;
+	IsExecuted = 0;
+	RegConsoleCmd("arang_modeselect", Command_ModeSelect, "", 0);
+	RegConsoleCmd("arang_modereload", Command_ReloadDataFile, "", 0);
+	RegConsoleCmd("Vote", Command_Vote, "", 0);
+	Init_Events();
+	ArangMode_ReloadDataFile();
+	ArangMode_ReloadConfig();
+	return 0;
+}
+
+public OnMapStart()
+{
+	ArangMode_ReloadConfig();
+	return 0;
+}
+
+public CheckAdminUser(client)
+{
+	if (!client)
+	{
+		return 1;
+	}
+	if (GetUserAdmin(client) != -1)
+	{
+		return 1;
+	}
+	return 0;
+}
+
+public Action:Command_ModeSelect(client, args)
+{
+	new String:StrMode[128];
+	GetCmdArg(1, StrMode, 128);
+	if (CheckAdminUser(client))
+	{
+		if (0 < strlen(StrMode))
+		{
+			ArangMode_LoadMode(-1, StrMode, 1);
+		}
+		else
+		{
+			ShowSelectMode_Menu(client);
+		}
+	}
+	else
+	{
+		Display(0, 0, "Only owner of this server can use ARANG Mode Select.");
+	}
+	return Action:3;
+}
+
+public Action:Command_ReloadDataFile(client, args)
+{
+	new String:StrMode[128];
+	GetCmdArg(1, StrMode, 128);
+	if (0 < strlen(StrMode))
+	{
+		ArangMode_LoadMode(-1, StrMode, 1);
+	}
+	else
+	{
+		ShowSelectMode_Menu(client);
+	}
+	return Action:3;
+}
+
+public ArangMode_ReloadDataFile()
+{
+	if (HFile)
+	{
+		CloseHandle(HFile);
+	}
+	HFile = CreateKeyValues("ArangingModes", "", "");
+	KvSetEscapeSequences(HFile, true);
+	FileToKeyValues(HFile, "cfg/arang/arang_mode.txt");
+	ArangMode_ReloadConfig();
+	return 0;
+}
+
+public ArangMode_ReloadConfig()
+{
+	ServerCommand("exec arang/arang_mode_startup.cfg");
+	if (!IsExecuted)
+	{
+		ServerCommand("exec arang/arang_mode_startup_once.cfg");
+		IsExecuted = 1;
+	}
+	return 0;
+}
+
+public ArangMode_ExecCommand(client, String:InpCommand[])
+{
+	ExecCommand(client, InpCommand);
+	return 0;
+}
+
+public ArangMode_SetVarValue(String:VarName[], String:VarValue[])
+{
+	new HCVar = FindConVar(VarName);
+	if (HCVar)
+	{
+		if (0 < strlen(VarValue))
+		{
+			SetConVarString(HCVar, VarValue, false, false);
+			PrintToServer("SetVarValue %s = %s", VarName, VarValue);
+		}
+		else
+		{
+			ResetConVar(HCVar, false, false);
+			PrintToServer("ResetVar %s", VarName);
+		}
+		return 0;
+	}
+	PrintToServer("Unableto SetVarValue %s", VarName, VarValue);
+	return 0;
+}
+
+public ArangMode_LoadMode(client, String:ModeName[], LoadBaseOn)
+{
+	new String:StrConfTitle[128];
+	new String:StrConfName[128];
+	new String:StrBaseName[128];
+	new bool:IsLastMode;
+	strcopy(StrConfName, 128, ModeName);
+	IsLastMode = strcmp(ModeName, LastModeName, false) == 0;
+	if (LoadBaseOn)
+	{
+		KvRewind(HFile);
+		if (KvJumpToKey(HFile, StrConfName, false))
+		{
+			KvGetString(HFile, "BaseOn", StrBaseName, 128, "");
+			if (0 < strlen(StrBaseName))
+			{
+				ArangMode_LoadMode(client, StrBaseName, 0);
+			}
+		}
+	}
+	KvRewind(HFile);
+	if (KvJumpToKey(HFile, StrConfName, false))
+	{
+		KvGetSectionName(HFile, StrConfName, 128);
+		KvGetString(HFile, "Title", StrConfTitle, 128, "");
+		if (LoadBaseOn)
+		{
+			PrintToServer("Loading Mode: %s", ModeName);
+			if (!IsLastMode)
+			{
+				Display(0, 0, "Loading Mode: %s.", StrConfTitle);
+			}
+		}
+		new String:StrKey[128];
+		new String:StrValue[128];
+		if (KvJumpToKey(HFile, "Configs", false))
+		{
+			KvGotoFirstSubKey(HFile, false);
+			do {
+				KvGetSectionName(HFile, StrKey, 128);
+				KvGetString(HFile, "", StrValue, 128, "");
+				ArangMode_SetVarValue(StrKey, StrValue);
+			} while (KvGotoNextKey(HFile, false));
+			KvGoBack(HFile);
+			KvGoBack(HFile);
+		}
+		if (KvJumpToKey(HFile, "Commands", false))
+		{
+			KvGotoFirstSubKey(HFile, false);
+			do {
+				KvGetSectionName(HFile, StrKey, 128);
+				KvGetString(HFile, "", StrValue, 128, "");
+				ArangMode_ExecCommand(client, StrValue);
+			} while (KvGotoNextKey(HFile, false));
+			KvGoBack(HFile);
+			KvGoBack(HFile);
+		}
+		if (LoadBaseOn)
+		{
+			strcopy(LastModeName, 128, ModeName);
+		}
+	}
+	return 0;
+}
+
+public AddMenuItemFormat(Handle:menu, bool:En, String:Info[], String:Format[])
+{
+	decl String:Title[192];
+	VFormat(Title, 192, Format, 5);
+	new var1;
+	if (!En)
+	{
+		var1 = 1;
+	}
+	else
+	{
+		var1 = 0;
+	}
+	AddMenuItem(menu, Info, Title, var1);
+	return 0;
+}
+
+public ShowSelectMode_Menu(client)
+{
+	new Handle:HMenu = CreateMenu(SelectMode_Handler, MenuAction:28);
+	new String:StrTitle[128];
+	Format(StrTitle, 128, "ARANGING MODE (v%s)", "0.85");
+	SetMenuTitle(HMenu, StrTitle);
+	new String:StrConfName[128];
+	new String:StrConfTitle[128];
+	KvRewind(HFile);
+	KvGotoFirstSubKey(HFile, true);
+	do {
+		KvGetSectionName(HFile, StrConfName, 128);
+		KvGetString(HFile, "Title", StrConfTitle, 128, StrConfName);
+		AddMenuItemFormat(HMenu, true, StrConfName, "%s", StrConfTitle);
+	} while (KvGotoNextKey(HFile, true));
+	DisplayMenu(HMenu, client, 0);
+	if (client)
+	{
+		EmitSoundToClient(client, "UI/Menu_Horror01.wav", -2, 0, 75, 0, 1.0, 100, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+	}
+	return 0;
+}
+
+public SelectMode_Handler(Handle:HMenu, MenuAction:action, client, itemindex)
+{
+	if (action == MenuAction:4)
+	{
+		new SelStyle;
+		new String:SelInfo[64];
+		new String:SelTitle[128];
+		GetMenuItem(HMenu, itemindex, SelInfo, 64, SelStyle, SelTitle, 128);
+		new Handle:HSubMenu = CreateMenu(SelectMode_Command_Handler, MenuAction:28);
+		new String:StrTitle[128];
+		Format(StrTitle, 128, "ARANGING MODE SELECT - %s ", SelTitle);
+		SetMenuTitle(HSubMenu, StrTitle);
+		AddMenuItemFormat(HSubMenu, true, SelInfo, "Activate", SelTitle);
+		DisplayMenu(HSubMenu, client, 0);
+	}
+	return 0;
+}
+
+public SelectMode_Command_Handler(Handle:HMenu, MenuAction:action, client, itemindex)
+{
+	if (action == MenuAction:4)
+	{
+		new SelStyle;
+		new String:SelInfo[64];
+		new String:SelTitle[128];
+		GetMenuItem(HMenu, itemindex, SelInfo, 64, SelStyle, SelTitle, 128);
+		if (itemindex)
+		{
+		}
+		else
+		{
+			ArangMode_LoadMode(-1, SelInfo, 1);
+		}
+	}
+	return 0;
+}
+
+public Init_Events()
+{
+	HookEvent("bot_player_replace", Event_PlayerToBotReplace, EventHookMode:1);
+	HookEvent("round_start", Event_GameStart, EventHookMode:1);
+	return 0;
+}
+
+public Action:Event_GameStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Display(0, 0, "\x01\x05ARANG Mode (%s) Service\x01.", "0.85");
+	ArangMode_ReloadConfig();
+	return Action:0;
+}
+
+public Action:Event_PlayerToBotReplace(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "player"));
+	ClientCommand(client, "bind F12 \"arang_modeselect\"");
+	return Action:0;
+}
+
+public Display(client, Mode, String:format[])
+{
+	decl String:Buffer[192];
+	VFormat(Buffer, 192, format, 4);
+	if (client)
+	{
+		DisplayText(client, Mode, Buffer);
+	}
+	else
+	{
+		new Index = 1;
+		while (GetMaxClients() >= Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				DisplayText(Index, Mode, Buffer);
+			}
+			Index++;
+		}
+	}
+	return 0;
+}
+
+public DisplayText(client, Mode, String:Text[])
+{
+	switch (Mode)
+	{
+		case 0:
+		{
+			PrintToChat(client, Text);
+		}
+		case 1:
+		{
+			PrintHintText(client, Text);
+		}
+		case 2:
+		{
+			PrintCenterText(client, Text);
+		}
+		case 3:
+		{
+			PrintToChat(client, Text);
+		}
+		default:
+		{
+		}
+	}
+	return 0;
+}
+
+public ExecCommand(clientId, String:InpCommand[])
+{
+	ServerExecute();
+	new String:Commands[1][256];
+	Commands[0] = "\x04";
+	new String:Command[256];
+	ExplodeString(InpCommand, " ", Commands, 1, 255);
+	StrCopy(Command, 255, Commands[0][Commands]);
+	new CommandFlags = GetCommandFlags(Command);
+	SetCommandFlags(Command, CommandFlags & -16385);
+	if (clientId)
+	{
+		if (clientId == -1)
+		{
+			ServerCommand(InpCommand);
+			ServerExecute();
+		}
+		if (IsClientInGame(clientId))
+		{
+			FakeClientCommand(clientId, InpCommand);
+		}
+	}
+	else
+	{
+		new Index = 1;
+		while (GetMaxClients() > Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				FakeClientCommand(Index, InpCommand);
+			}
+			Index++;
+		}
+	}
+	SetCommandFlags(Command, CommandFlags);
+	return 0;
+}
+
+public SetClientVote(client, Vote)
+{
+	new var1;
+	if (ClientVotes[client] < 0 && Vote != ClientVotes[client])
+	{
+		ClientVotes[client] = Vote;
+	}
+	NoVotes = 0;
+	YesVotes = 0;
+	new Cnt;
+	while (Cnt <= 64)
+	{
+		if (0 < ClientVotes[Cnt])
+		{
+			YesVotes += 1;
+		}
+		else
+		{
+			if (!ClientVotes[Cnt])
+			{
+				NoVotes += 1;
+			}
+		}
+		Cnt++;
+	}
+	return 0;
+}
+
+public Action:Command_Vote(client, args)
+{
+	new String:arg[8];
+	GetCmdArg(1, arg, 8);
+	PrintToServer("Got vote %s from %i", arg, client);
+	if (strcmp(arg, "Yes", false))
+	{
+		if (!(strcmp(arg, "No", false)))
+		{
+			SetClientVote(client, 0);
+		}
+	}
+	else
+	{
+		SetClientVote(client, 1);
+	}
+	Vote_Display();
+	return Action:0;
+}
+
+public Action:Command_CallVote(client, args)
+{
+	new String:StrType[64];
+	new String:StrTitle[256];
+	GetCmdArg(1, StrType, 64);
+	GetCmdArg(2, StrTitle, 255);
+	if (StrContains(StrType, "custom", false) != -1)
+	{
+		Vote_Begin(StrTitle);
+		return Action:3;
+	}
+	return Action:0;
+}
+
+public Vote_Begin(String:Title[])
+{
+	new Cnt;
+	while (Cnt <= 64)
+	{
+		ClientVotes[Cnt] = -1;
+		Cnt++;
+	}
+	new Handle:msg = CreateEvent("vote_started", false);
+	SetEventString(msg, "issue", "#L4D_TargetID_Player");
+	SetEventString(msg, "param1", Title);
+	SetEventInt(msg, "team", 0);
+	SetEventInt(msg, "initiator", 0);
+	FireEvent(msg, false);
+	YesVotes = 0;
+	NoVotes = 0;
+	MaxVotes = 4;
+	IsVoting = 1;
+	Vote_Display();
+	CreateTimer(10.0, VoteTimeout_Timer, any:0, 0);
+	return 0;
+}
+
+public Action:VoteTimeout_Timer(Handle:timer)
+{
+	Vote_Summary();
+	return Action:4;
+}
+
+public Vote_Display()
+{
+	PrintToServer("voting %i / %i!", YesVotes, NoVotes);
+	new Handle:msg = CreateEvent("vote_changed", false);
+	SetEventInt(msg, "yesVotes", YesVotes);
+	SetEventInt(msg, "noVotes", NoVotes);
+	SetEventInt(msg, "potentialVotes", MaxVotes);
+	FireEvent(msg, false);
+	if (NoVotes + YesVotes >= MaxVotes)
+	{
+		Vote_Summary();
+	}
+	return 0;
+}
+
+public Vote_Summary()
+{
+	if (!IsVoting)
+	{
+		return 0;
+	}
+	PrintToServer("voting complete!");
+	new Handle:msg = CreateEvent("vote_changed", false);
+	FireEvent(msg, false);
+	if (YesVotes > NoVotes)
+	{
+		msg = CreateEvent("vote_passed", false);
+		SetEventString(msg, "details", "#L4D_TargetID_Player");
+		SetEventString(msg, "param1", "Gaben is fat");
+		SetEventInt(msg, "team", 0);
+		FireEvent(msg, false);
+	}
+	else
+	{
+		msg = CreateEvent("vote_failed", false);
+		SetEventInt(msg, "team", 0);
+		FireEvent(msg, false);
+	}
+	IsVoting = 0;
+	return 0;
+}
+

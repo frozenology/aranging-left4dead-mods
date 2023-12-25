@@ -1,0 +1,868 @@
+public PlVers:__version =
+{
+	version = 5,
+	filevers = "1.4.0-dev",
+	date = "01/14/2010",
+	time = "00:34:21"
+};
+new Float:NULL_VECTOR[3];
+new String:NULL_STRING[4];
+public Extension:__ext_core =
+{
+	name = "Core",
+	file = "core",
+	autoload = 0,
+	required = 0,
+};
+new MaxClients;
+public Extension:__ext_sdktools =
+{
+	name = "SDKTools",
+	file = "sdktools.ext",
+	autoload = 1,
+	required = 1,
+};
+public Plugin:myinfo =
+{
+	name = "[L4D] Aranging In-Game Achievements by Frozenology",
+	description = "Aranging In-Game Achievements ",
+	author = "Frozenology",
+	version = "2.0",
+	url = "www.vagabondteam.com"
+};
+new PlayerHealthOffs;
+new HCVarFFEnabled;
+new WitchesKilledCount[65];
+new WitchesOneShotKilledCount[65];
+new TanksKilledCount[65];
+new PillsUsedCount[65];
+new FirstAidsUsedCount[65];
+new FirstAidsUsedOtherCount[65];
+new ReviveFriendsCount[65];
+new IncapCount[65];
+new DeathCount[65];
+new HeadshotsCount[65];
+new GrabLedgeCount[65];
+new JumpCount[65];
+new VomitCount[65];
+new MeleeKilledCount[65];
+new DragDistance[65];
+new AttackOtherCount[65];
+new KilledOtherCount[65];
+new IsAchieved50001[65];
+new IsAchieved50002[65];
+new IsAchieved50003[65];
+new IsAchieved50010[65];
+new IsAchieved50011[65];
+new IsAchieved50012[65];
+new IsAchieved50013[65];
+new IsAchieved50014[65];
+new IsAchieved50041[65];
+new IsAchieved50046[65];
+new IsAchieved50048[65];
+new IsAchieved50017[65];
+new IsAchieved50020[65];
+new String:CurCommand[256];
+public __ext_core_SetNTVOptional()
+{
+	MarkNativeAsOptional("GetFeatureStatus");
+	MarkNativeAsOptional("RequireFeature");
+	MarkNativeAsOptional("AddCommandListener");
+	MarkNativeAsOptional("RemoveCommandListener");
+	VerifyCoreVersion();
+	return 0;
+}
+
+EmitSoundToClient(client, String:sample[], entity, channel, level, flags, Float:volume, pitch, speakerentity, Float:origin[3], Float:dir[3], bool:updatePos, Float:soundtime)
+{
+	new clients[1];
+	clients[0] = client;
+	new var1;
+	if (entity == -2)
+	{
+		var1 = client;
+	}
+	else
+	{
+		var1 = entity;
+	}
+	entity = var1;
+	EmitSound(clients, 1, sample, entity, channel, level, flags, volume, pitch, speakerentity, origin, dir, updatePos, soundtime);
+	return 0;
+}
+
+EmitSoundToAll(String:sample[], entity, channel, level, flags, Float:volume, pitch, speakerentity, Float:origin[3], Float:dir[3], bool:updatePos, Float:soundtime)
+{
+	new maxClients = GetMaxClients();
+	new clients[maxClients];
+	new total;
+	new i = 1;
+	while (i <= maxClients)
+	{
+		if (IsClientInGame(i))
+		{
+			total++;
+			clients[total] = i;
+		}
+		i++;
+	}
+	if (!total)
+	{
+		return 0;
+	}
+	EmitSound(clients, total, sample, entity, channel, level, flags, volume, pitch, speakerentity, origin, dir, updatePos, soundtime);
+	return 0;
+}
+
+public OnPluginStart()
+{
+	PlayerHealthOffs = FindSendPropOffs("CTerrorPlayer", "m_iHealth");
+	CreateConVar("arang_achievements_version", "2.0", "Aranging Shop", 270656, false, 0.0, false, 0.0);
+	RegConsoleCmd("arang_achievements", ShowAchievementsMenu, "", 0);
+	RegConsoleCmd("arang_achievements_status", ShowAchievements_Status, "", 0);
+	HCVarFFEnabled = CreateConVar("arang_ffp_enabled", "1", "Set Friendly Fire Protection Enable", 262400, false, 0.0, false, 0.0);
+	Init_Events();
+	ArangAchi_ResetAll();
+	return 0;
+}
+
+public OnMapStart()
+{
+	DisplayUsage(0);
+	CreateTimer(360.0, DisplayUsage_Timer, any:0, 3);
+	Init_ArangAchi_AttackOther();
+	return 0;
+}
+
+public Action:DisplayUsage_Timer(Handle:timer, any:client)
+{
+	DisplayUsage(0);
+	return Action:0;
+}
+
+public DisplayUsage(client)
+{
+	Display(client, 3, "\x01\x05Frozenology's ARANG In-Game Achievements (%s) Service", "2.0");
+	return 0;
+}
+
+public ArangAchi_ResetAll()
+{
+	ArangAchi_ResetMap();
+	return 0;
+}
+
+public ArangAchi_ResetMap()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		IsAchieved50001[Index] = 0;
+		IsAchieved50002[Index] = 0;
+		IsAchieved50003[Index] = 0;
+		IsAchieved50010[Index] = 0;
+		IsAchieved50011[Index] = 0;
+		IsAchieved50012[Index] = 0;
+		IsAchieved50013[Index] = 0;
+		IsAchieved50014[Index] = 0;
+		IsAchieved50041[Index] = 0;
+		IsAchieved50046[Index] = 0;
+		IsAchieved50048[Index] = 0;
+		IsAchieved50017[Index] = 0;
+		IsAchieved50020[Index] = 0;
+		WitchesKilledCount[Index] = 0;
+		WitchesOneShotKilledCount[Index] = 0;
+		TanksKilledCount[Index] = 0;
+		PillsUsedCount[Index] = 0;
+		FirstAidsUsedCount[Index] = 0;
+		FirstAidsUsedOtherCount[Index] = 0;
+		ReviveFriendsCount[Index] = 0;
+		IncapCount[Index] = 0;
+		DeathCount[Index] = 0;
+		HeadshotsCount[Index] = 0;
+		GrabLedgeCount[Index] = 0;
+		JumpCount[Index] = 0;
+		VomitCount[Index] = 0;
+		MeleeKilledCount[Index] = 0;
+		DragDistance[Index] = 0;
+		AttackOtherCount[Index] = 0;
+		KilledOtherCount[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Init_ArangAchi_AttackOther()
+{
+	CreateTimer(1.0, ArangAchi_AttackOther_Timer, any:0, 3);
+	return 0;
+}
+
+public Action:ArangAchi_AttackOther_Timer(Handle:timer, any:client)
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		if (0 < AttackOtherCount[Index])
+		{
+			AttackOtherCount[Index] += -2;
+		}
+		Index++;
+	}
+	return Action:0;
+}
+
+public ArangAchi_CheckClient(client)
+{
+	if (GetConVarBool(HCVarFFEnabled))
+	{
+		if (AttackOtherCount[client] >= 80)
+		{
+			Display(0, 0, "%N is Friendly Fire !", client);
+			if (AttackOtherCount[client] >= 120)
+			{
+				ExecClientCommand(client, "arang_shop_buy 50029");
+			}
+			ExecClientCommand(client, "arang_shop_buy 50028");
+			AttackOtherCount[client] += -20;
+		}
+	}
+	new var1;
+	if (!IsAchieved50001[client] && WitchesOneShotKilledCount[client] >= 8)
+	{
+		ArangAchi_Message(client, "KILL THE LIGHTS");
+		IsAchieved50001[client] = 1;
+	}
+	new var2;
+	if (!IsAchieved50002[client] && TanksKilledCount[client] >= 8)
+	{
+		ArangAchi_Message(client, "JACK THE GIANT KILLER");
+		ExecClientCommand(client, "arang_shop_buy 50002");
+		IsAchieved50002[client] = 1;
+	}
+	new var3;
+	if (!IsAchieved50003[client] && IncapCount[client] >= 6)
+	{
+		ArangAchi_Message(client, "NO GAIN NO PAIN");
+		ExecClientCommand(client, "arang_shop_buy 50003");
+		IsAchieved50003[client] = 1;
+	}
+	new var4;
+	if (!IsAchieved50010[client] && HeadshotsCount[client] >= 200)
+	{
+		ArangAchi_Message(client, "BRAIN BLASTER");
+		ExecClientCommand(client, "arang_shop_buy 50010");
+		IsAchieved50010[client] = 1;
+	}
+	new var5;
+	if (!IsAchieved50011[client] && JumpCount[client] >= 300)
+	{
+		ArangAchi_Message(client, "YOU ARE A JUMPER");
+		ExecClientCommand(client, "arang_shop_buy 50011");
+		IsAchieved50011[client] = 1;
+	}
+	new var6;
+	if (!IsAchieved50012[client] && VomitCount[client] >= 12)
+	{
+		ArangAchi_Message(client, "DIRTY WORK");
+		ExecClientCommand(client, "arang_shop_buy 50012");
+		IsAchieved50012[client] = 1;
+	}
+	new var7;
+	if (!IsAchieved50013[client] && MeleeKilledCount[client] >= 300)
+	{
+		ArangAchi_Message(client, "MELEE MASTER");
+		ExecClientCommand(client, "arang_shop_buy 50013");
+		IsAchieved50013[client] = 1;
+	}
+	new var8;
+	if (!IsAchieved50014[client] && DragDistance[client] >= 5000)
+	{
+		ArangAchi_Message(client, "SMOKEMETER");
+		IsAchieved50014[client] = 1;
+	}
+	new var9;
+	if (!IsAchieved50041[client] && FirstAidsUsedOtherCount[client] >= 5)
+	{
+		ArangAchi_Message(client, "KINDLY");
+		ExecClientCommand(client, "arang_shop_buy 50041");
+		IsAchieved50041[client] = 1;
+	}
+	new var10;
+	if (!IsAchieved50046[client] && FirstAidsUsedCount[client][PillsUsedCount[client]] >= 24)
+	{
+		ArangAchi_Message(client, "SUPER OVERDOSED");
+		ExecClientCommandDelay(client, "arang_shop_buy 50046", 1077936128);
+		IsAchieved50046[client] = 1;
+	}
+	new var11;
+	if (!IsAchieved50048[client] && ReviveFriendsCount[client] >= 10)
+	{
+		ArangAchi_Message(client, "OVERPROTECTED");
+		ExecClientCommand(client, "arang_shop_buy 50048");
+		IsAchieved50048[client] = 1;
+	}
+	new var12;
+	if (!IsAchieved50020[client] && KilledOtherCount[client] >= 1)
+	{
+		ArangAchi_Message(client, "MURDERER");
+		ExecClientCommand(client, "arang_shop_buy 50020");
+		IsAchieved50020[client] = 1;
+	}
+	return 0;
+}
+
+public ArangAchi_Message(client, String:Title[])
+{
+	Display(0, 0, "\x01\x03%N\x01 has earned achievement \x05%s \x01", client, Title);
+	EmitSoundToAll("UI/Pickup_Misc42.wav", -2, 0, 75, 0, 1.0, 100, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+	return 0;
+}
+
+public Action:ShowAchievements_Status(client, args)
+{
+	ArangAchi_Status(client);
+	return Action:0;
+}
+
+public ArangAchi_Status(Index)
+{
+	Display(Index, 0, "\x01\x05Achievements Status\x011");
+	Display(Index, 0, "WitchesKilledCount %i", WitchesKilledCount[Index]);
+	Display(Index, 0, "WitchesOneShotKilledCount %i", WitchesOneShotKilledCount[Index]);
+	Display(Index, 0, "TanksKilledCount %i", TanksKilledCount[Index]);
+	Display(Index, 0, "PillsUsedCount %i", PillsUsedCount[Index]);
+	Display(Index, 0, "FirstAidsUsedCount %i", FirstAidsUsedCount[Index]);
+	Display(Index, 0, "IncapCount %i", IncapCount[Index]);
+	Display(Index, 0, "DeathCount %i", DeathCount[Index]);
+	Display(Index, 0, "HeadshotsCount %i", HeadshotsCount[Index]);
+	return 0;
+}
+
+public SetHookEvent(String:name[], EventHook:callback)
+{
+	if (HookEventEx(name, callback, EventHookMode:1))
+	{
+		PrintToServer("Captured Event %s .", name);
+	}
+	else
+	{
+		PrintToServer("Unable to Captured Event %s .", name);
+	}
+	return 0;
+}
+
+public Init_Events()
+{
+	SetHookEvent("infected_death", Event_InfectedDeath);
+	SetHookEvent("infected_hurt", Event_InfectedHurt);
+	SetHookEvent("player_hurt", Event_PlayerHurt);
+	SetHookEvent("player_death", Event_PlayerDeath);
+	SetHookEvent("tank_killed", Event_TankKilled);
+	SetHookEvent("witch_killed", Event_WitchKilled);
+	SetHookEvent("witch_harasser_set", Event_WitchHarasserSet);
+	SetHookEvent("friendly_fire", Event_FriendlyFire);
+	SetHookEvent("mission_lost", Event_MissionLost);
+	SetHookEvent("round_start", Event_GameStart);
+	SetHookEvent("tongue_grab", Event_PlayerTongueGrab);
+	SetHookEvent("tongue_release", Event_PlayerTongueReleased);
+	SetHookEvent("player_now_it", Event_PlayerVomitted);
+	SetHookEvent("player_jump", Event_PlayerJump);
+	SetHookEvent("player_incapacitated", Event_PlayerIncap);
+	SetHookEvent("melee_kill", Event_PlayerMeleeKill);
+	SetHookEvent("revive_success", Event_PlayerReviveSuccess);
+	SetHookEvent("pills_used", Event_PlayerPillsUsed);
+	SetHookEvent("heal_success", Event_PlayerHealSuccess);
+	SetHookEvent("finale_win", Event_FinaleWin);
+	return 0;
+}
+
+public Action:Event_GameStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Event_DisplayUsage(event, name, dontBroadcast);
+	return Action:0;
+}
+
+public Action:Event_DisplayUsage(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	DisplayUsage(client);
+	return Action:0;
+}
+
+public Action:Event_FriendlyFire(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new victim = GetClientOfUserId(GetEventInt(event, "victim"));
+	new guilty = GetEventInt(event, "guilty");
+	if (victim != attacker)
+	{
+		ArangAchi_CheckClient(attacker);
+	}
+	return Action:0;
+}
+
+public Action:Event_MissionLost(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_WitchKilled(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (GetEventBool(event, "oneshot"))
+	{
+		WitchesOneShotKilledCount[attacker] += 1;
+		ArangAchi_CheckClient(attacker);
+	}
+	return Action:0;
+}
+
+public Action:Event_WitchHarasserSet(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	new victim = GetEventInt(event, "witchid");
+	if (IsAchieved50001[attacker])
+	{
+		if (PlayerHealthOffs)
+		{
+			new Val = GetEntData(victim, PlayerHealthOffs, 4);
+			SetEntData(victim, PlayerHealthOffs, Val / 4, 4, false);
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_TankKilled(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_PlayerHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new var1;
+	if (client && attacker)
+	{
+		new String:VictimClass[256];
+		new String:AttackerClass[256];
+		GetClientModel(client, VictimClass, 255);
+		GetClientModel(attacker, AttackerClass, 255);
+		new var2;
+		if (attacker != client && StrContains(VictimClass, "survivor", false) != -1 && StrContains(AttackerClass, "survivor", false) != -1)
+		{
+			new DmgHealth = GetEventInt(event, "dmg_health");
+			new var3 = AttackOtherCount[attacker];
+			var3 = var3[DmgHealth];
+		}
+		if (StrContains(AttackerClass, "survivor", false) != -1)
+		{
+			if (!(StrContains(VictimClass, "hunter", false) != -1))
+			{
+				if (!(StrContains(VictimClass, "smoker", false) != -1))
+				{
+					if (!(StrContains(VictimClass, "boomer", false) != -1))
+					{
+						if (!(StrContains(VictimClass, "hulk", false) != -1))
+						{
+							StrContains(VictimClass, "survivor", false);
+						}
+					}
+				}
+			}
+		}
+		ArangAchi_CheckClient(client);
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new var1;
+	if (attacker != client && client && attacker)
+	{
+		new String:VictimClass[256];
+		new String:AttackerClass[256];
+		GetClientModel(client, VictimClass, 255);
+		GetClientModel(attacker, AttackerClass, 255);
+		if (StrContains(AttackerClass, "survivor", false) != -1)
+		{
+			if (StrContains(VictimClass, "hunter", false) != -1)
+			{
+			}
+			else
+			{
+				if (!(StrContains(VictimClass, "smoker", false) != -1))
+				{
+					if (!(StrContains(VictimClass, "boomer", false) != -1))
+					{
+						if (StrContains(VictimClass, "hulk", false) != -1)
+						{
+							TanksKilledCount[attacker] += 1;
+						}
+						if (StrContains(VictimClass, "survivor", false) != -1)
+						{
+							KilledOtherCount[attacker] += 1;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			DeathCount[client] += 1;
+		}
+		ArangAchi_CheckClient(client);
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerPillsUsed(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	PillsUsedCount[client] += 1;
+	ArangAchi_CheckClient(client);
+	return Action:0;
+}
+
+public Action:Event_PlayerReviveSuccess(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new victim = GetClientOfUserId(GetEventInt(event, "subject"));
+	if (victim != client)
+	{
+		ReviveFriendsCount[client] += 1;
+	}
+	ArangAchi_CheckClient(client);
+	return Action:0;
+}
+
+public Action:Event_PlayerHealSuccess(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new victim = GetClientOfUserId(GetEventInt(event, "subject"));
+	if (victim == client)
+	{
+		FirstAidsUsedCount[client] += 1;
+	}
+	else
+	{
+		FirstAidsUsedOtherCount[client] += 1;
+	}
+	ArangAchi_CheckClient(client);
+	return Action:0;
+}
+
+public Action:Event_FinaleWin(Handle:event, String:name[], bool:dontBroadcast)
+{
+	ArangAchi_ResetAll();
+	return Action:0;
+}
+
+public Action:Event_PlayerMeleeKill(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client)
+	{
+		new String:VictimClass[256];
+		GetClientModel(client, VictimClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			MeleeKilledCount[client] += 1;
+			ArangAchi_CheckClient(client);
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerJump(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client)
+	{
+		new String:VictimClass[256];
+		GetClientModel(client, VictimClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			JumpCount[client] += 1;
+			ArangAchi_CheckClient(client);
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerTongueGrab(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	new client = GetClientOfUserId(GetEventInt(event, "victim"));
+	if (client != attacker)
+	{
+		if (IsAchieved50014[client])
+		{
+			if (GetRandomInt(0, 100) > 50)
+			{
+				ForcePlayerSuicide(attacker);
+			}
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerTongueReleased(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	new client = GetClientOfUserId(GetEventInt(event, "victim"));
+	if (client)
+	{
+		new Distance = GetEventInt(event, "distance");
+		new String:VictimClass[256];
+		GetClientModel(client, VictimClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			if (Distance < 3000)
+			{
+				new var1 = DragDistance[client];
+				var1 = var1[Distance];
+			}
+			ArangAchi_CheckClient(client);
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerVomitted(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client)
+	{
+		new String:VictimClass[256];
+		GetClientModel(client, VictimClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			VomitCount[client] += 1;
+			ArangAchi_CheckClient(client);
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerLedgeGrab(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client)
+	{
+		new String:VictimClass[256];
+		GetClientModel(client, VictimClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			GrabLedgeCount[client] += 1;
+			ArangAchi_CheckClient(client);
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerIncap(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client)
+	{
+		new String:VictimClass[256];
+		GetClientModel(client, VictimClass, 255);
+		if (StrContains(VictimClass, "survivor", false) != -1)
+		{
+			IncapCount[client] += 1;
+			ArangAchi_CheckClient(client);
+			if (IsAchieved50003[client])
+			{
+				new CurHealth = GetEntData(client, PlayerHealthOffs, 4);
+				CurHealth += 100;
+				SetEntData(client, PlayerHealthOffs, CurHealth, 4, false);
+			}
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_InfectedHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_InfectedDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if (attacker)
+	{
+		new IsHeadshot = GetEventInt(event, "headshot");
+		if (IsHeadshot)
+		{
+			HeadshotsCount[attacker] += 1;
+			ArangAchi_CheckClient(attacker);
+		}
+	}
+	return Action:0;
+}
+
+public Display(client, Mode, String:format[])
+{
+	decl String:Buffer[192];
+	VFormat(Buffer, 192, format, 4);
+	if (client)
+	{
+		DisplayText(client, Mode, Buffer);
+	}
+	else
+	{
+		new Index = 1;
+		while (GetMaxClients() >= Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				DisplayText(Index, Mode, Buffer);
+			}
+			Index++;
+		}
+	}
+	return 0;
+}
+
+public DisplayText(client, Mode, String:Text[])
+{
+	switch (Mode)
+	{
+		case 0:
+		{
+			PrintToChat(client, Text);
+		}
+		case 1:
+		{
+			PrintHintText(client, Text);
+		}
+		case 2:
+		{
+			PrintCenterText(client, Text);
+		}
+		case 3:
+		{
+			PrintToChat(client, Text);
+		}
+		default:
+		{
+		}
+	}
+	return 0;
+}
+
+public Action:ShowAchievementsMenu(client, args)
+{
+	AchievementsMenu(AchievementsMenu_MenuHandler, client, 0);
+	return Action:3;
+}
+
+public Action:AchievementsCommand(client, args)
+{
+	new String:Param[256];
+	GetCmdArg(1, Param, 255);
+	new SelItem = StringToInt(Param, 10);
+	return Action:3;
+}
+
+public AchievementsMenu_Add(Handle:menu, bool:En, String:Info[], String:Format[])
+{
+	decl String:Title[192];
+	VFormat(Title, 192, Format, 5);
+	new var1;
+	if (!En)
+	{
+		var1 = 1;
+	}
+	else
+	{
+		var1 = 0;
+	}
+	AddMenuItem(menu, Info, Title, var1);
+	return 0;
+}
+
+public AchievementsMenu(MenuHandler:Handler, client, CatMenu)
+{
+	new Handle:menu = CreateMenuEx(Handle:0, Handler, MenuAction:28);
+	new String:ShopTitle[128];
+	Format(ShopTitle, 128, "ARANG ACHIEVEMENTS (v%s) of %N", "2.0", client);
+	SetMenuTitle(menu, ShopTitle);
+	switch (CatMenu)
+	{
+		case 0:
+		{
+			AchievementsMenu_Add(menu, true, "50001", "Kill the lights - Kill %i/8 witches", WitchesOneShotKilledCount[client], 12);
+			AchievementsMenu_Add(menu, true, "50002", "Jack the Giant Killer - Kill %i/8 Tanks", TanksKilledCount[client]);
+			AchievementsMenu_Add(menu, true, "50003", "No Gain No Pain - %i/6 time incapacitated in a map", IncapCount[client]);
+			AchievementsMenu_Add(menu, true, "50010", "Brain Blaster - Make %i/200 headshot kills", HeadshotsCount[client]);
+			AchievementsMenu_Add(menu, true, "50011", "You are a Jumper - Jump %i/300 times", JumpCount[client]);
+			AchievementsMenu_Add(menu, true, "50012", "Dirty Work - Being Vomit %i/12 times", VomitCount[client]);
+			AchievementsMenu_Add(menu, true, "50013", "Melee Master - Kill %i/300 infected by using melee attack", MeleeKilledCount[client]);
+			AchievementsMenu_Add(menu, true, "50014", "Smokemeter - Being drag by smoker for a distance %i/5000 ", DragDistance[client]);
+			AchievementsMenu_Add(menu, true, "50041", "Kindly - Heal your friends for %i/5 time", FirstAidsUsedOtherCount[client]);
+			AchievementsMenu_Add(menu, true, "50046", "Super Overdosed - Use Pills or First aids for %i/24 times", FirstAidsUsedCount[client][PillsUsedCount[client]]);
+			AchievementsMenu_Add(menu, true, "50017", "Overprotected - Revive Friends %i/23 times", ReviveFriendsCount[client]);
+			AchievementsMenu_Add(menu, true, "50020", "Murderer - Kill another one %i", KilledOtherCount[client]);
+		}
+		default:
+		{
+		}
+	}
+	SetMenuExitButton(menu, true);
+	DisplayMenu(menu, client, 0);
+	EmitSoundToClient(client, "UI/Menu_Horror01.wav", -2, 0, 75, 0, 1.0, 100, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+	return 0;
+}
+
+public AchievementsMenu_MenuHandler(Handle:menu, MenuAction:action, client, itemNum)
+{
+	if (action == MenuAction:4)
+	{
+		new String:SelInfo[256];
+		GetMenuItem(menu, itemNum, SelInfo, 255, 0, "", 0);
+		new SelItem = StringToInt(SelInfo, 10);
+	}
+	return 0;
+}
+
+public ExecClientCommandDelay(clientId, String:Command[], Delay)
+{
+	strcopy(CurCommand, 255, Command);
+	CreateTimer(Delay, ExecClientCommandDelay_Timer, clientId, 0);
+	return 0;
+}
+
+public Action:ExecClientCommandDelay_Timer(Handle:timer, any:client)
+{
+	ExecClientCommand(client, CurCommand);
+	return Action:4;
+}
+
+public ExecClientCommand(clientId, String:Command[])
+{
+	new GiveFlags = GetCommandFlags("give");
+	new SpawnFlags = GetCommandFlags("z_spawn");
+	SetCommandFlags("give", GiveFlags & -16385);
+	SetCommandFlags("z_spawn", SpawnFlags & -16385);
+	if (clientId)
+	{
+		FakeClientCommand(clientId, Command);
+	}
+	else
+	{
+		ServerExecute();
+		ServerCommand(Command);
+		ServerExecute();
+	}
+	SetCommandFlags("give", GiveFlags | 16384);
+	SetCommandFlags("z_spawn", SpawnFlags | 16384);
+	return 0;
+}
+

@@ -1,0 +1,87 @@
+L 07/02/2023 - 01:09:38: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 01:09:38: [SM] Changed map to "c2m1_highway"
+L 07/02/2023 - 01:09:39: -------- Mapchange to c2m1_highway --------
+L 07/02/2023 - 01:14:13: Log file closed.
+L 07/02/2023 - 01:38:40: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 01:38:40: [SM] Changed map to "c11m1_greenhouse"
+L 07/02/2023 - 01:38:41: -------- Mapchange to c11m1_greenhouse --------
+L 07/02/2023 - 01:53:24: Log file closed.
+L 07/02/2023 - 02:00:27: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 02:00:27: [SM] Changed map to "c11m1_greenhouse"
+L 07/02/2023 - 02:00:28: -------- Mapchange to c11m1_greenhouse --------
+L 07/02/2023 - 02:01:43: Log file closed.
+L 07/02/2023 - 02:03:14: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 02:03:14: [SM] Changed map to "c1m1_hotel"
+L 07/02/2023 - 02:03:15: -------- Mapchange to c1m1_hotel --------
+L 07/02/2023 - 02:04:04: Log file closed.
+L 07/02/2023 - 02:08:41: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 02:08:41: [SM] Changed map to "c5m1_waterfront"
+L 07/02/2023 - 02:08:42: -------- Mapchange to c5m1_waterfront --------
+L 07/02/2023 - 02:10:07: Log file closed.
+L 07/02/2023 - 02:18:42: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 02:18:42: [SM] Changed map to "c9m1_alleys"
+L 07/02/2023 - 02:18:43: -------- Mapchange to c9m1_alleys --------
+L 07/02/2023 - 02:20:17: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_power_pricescale") (value "3")
+L 07/02/2023 - 02:20:57: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_power_pricescale") (value "10")
+L 07/02/2023 - 02:22:27: Log file closed.
+L 07/02/2023 - 02:23:57: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 02:23:57: [SM] Changed map to "c5m1_waterfront"
+L 07/02/2023 - 02:23:58: -------- Mapchange to c5m1_waterfront --------
+L 07/02/2023 - 02:24:45: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_power_pricescale") (value "10")
+L 07/02/2023 - 02:30:58: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_power_initial") (value "50000")
+L 07/02/2023 - 02:37:48: Log file closed.
+L 07/02/2023 - 03:18:38: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 03:18:38: [SM] Changed map to "c9m1_alleys"
+L 07/02/2023 - 03:18:39: -------- Mapchange to c9m1_alleys --------
+L 07/02/2023 - 03:29:19: -------- Mapchange to c9m2_lots --------
+L 07/02/2023 - 03:52:21: -------- Mapchange to c10m1_caves --------
+L 07/02/2023 - 04:05:10: -------- Mapchange to c10m2_drainage --------
+L 07/02/2023 - 04:23:07: -------- Mapchange to c10m3_ranchhouse --------
+L 07/02/2023 - 04:31:19: -------- Mapchange to c10m4_mainstreet --------
+L 07/02/2023 - 04:33:29: -------- Mapchange to c5m1_waterfront --------
+L 07/02/2023 - 04:43:57: -------- Mapchange to c5m2_park --------
+L 07/02/2023 - 04:54:37: -------- Mapchange to c5m3_cemetery --------
+L 07/02/2023 - 05:08:24: -------- Mapchange to c5m4_quarter --------
+L 07/02/2023 - 05:17:23: -------- Mapchange to c5m5_bridge --------
+L 07/02/2023 - 05:27:32: Log file closed.
+L 07/02/2023 - 05:30:37: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 05:30:37: [SM] Changed map to "c7m1_docks"
+L 07/02/2023 - 05:30:38: -------- Mapchange to c7m1_docks --------
+L 07/02/2023 - 05:36:01: Log file closed.
+L 07/02/2023 - 12:05:20: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 12:05:20: [SM] Changed map to "c2m1_highway"
+L 07/02/2023 - 12:05:21: -------- Mapchange to c2m1_highway --------
+L 07/02/2023 - 12:08:11: -------- Mapchange to c8m1_apartment --------
+L 07/02/2023 - 12:13:11: -------- Mapchange to c8m1_apartment --------
+L 07/02/2023 - 12:14:03: Log file closed.
+L 07/02/2023 - 12:26:05: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 12:26:05: [SM] Changed map to "c12m1_hilltop"
+L 07/02/2023 - 12:26:06: -------- Mapchange to c12m1_hilltop --------
+L 07/02/2023 - 12:35:19: -------- Mapchange to c12m2_traintunnel --------
+L 07/02/2023 - 12:42:18: -------- Mapchange to c12m3_bridge --------
+L 07/02/2023 - 12:49:23: -------- Mapchange to c12m4_barn --------
+L 07/02/2023 - 12:56:56: -------- Mapchange to c12m5_cornfield --------
+L 07/02/2023 - 13:13:26: -------- Mapchange to c2m1_highway --------
+L 07/02/2023 - 13:15:24: [basecommands.smx] "Madame‵X<129><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_power_initial") (value "20000")
+L 07/02/2023 - 13:23:02: -------- Mapchange to c2m2_fairgrounds --------
+L 07/02/2023 - 13:28:53: Log file closed.
+L 07/02/2023 - 13:34:07: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 13:34:07: [SM] Changed map to "c2m1_highway"
+L 07/02/2023 - 13:34:08: -------- Mapchange to c2m1_highway --------
+L 07/02/2023 - 13:36:32: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "10")
+L 07/02/2023 - 13:42:31: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 13:42:31: [SM] Changed map to "c2m1_highway"
+L 07/02/2023 - 13:42:32: -------- Mapchange to c2m1_highway --------
+L 07/02/2023 - 13:44:05: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "10")
+L 07/02/2023 - 13:48:10: SourceMod log file session started (file "M:\SteamLibrary\steamapps\common\Left 4 Dead 2\left4dead2\addons\sourcemod\logs\L20230702.log") (Version "1.11.0.6932")
+L 07/02/2023 - 13:48:10: [SM] Changed map to "c2m1_highway"
+L 07/02/2023 - 13:48:12: -------- Mapchange to c2m1_highway --------
+L 07/02/2023 - 13:49:51: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "10")
+L 07/02/2023 - 13:56:56: -------- Mapchange to c2m2_fairgrounds --------
+L 07/02/2023 - 14:00:39: [basecommands.smx] "Madame‵X<2><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "5")
+L 07/02/2023 - 14:07:53: -------- Mapchange to c2m3_coaster --------
+L 07/02/2023 - 14:16:38: -------- Mapchange to c2m4_barns --------
+L 07/02/2023 - 14:23:48: -------- Mapchange to c2m5_concert --------
+L 07/02/2023 - 14:33:45: -------- Mapchange to c4m1_milltown_a --------
+L 07/02/2023 - 14:35:08: [basecommands.smx] "Madame‵X<161><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "3")
+L 07/02/2023 - 14:35:12: [basecommands.smx] "Madame‵X<161><STEAM_1:1:60427191><>" changed cvar (cvar "arang_shop_income_multipler") (value "5")

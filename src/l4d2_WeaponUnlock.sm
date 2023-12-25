@@ -1,0 +1,1028 @@
+public PlVers:__version =
+{
+	version = 5,
+	filevers = "1.3.1",
+	date = "03/16/2010",
+	time = "01:03:53"
+};
+new Float:NULL_VECTOR[3];
+new String:NULL_STRING[4];
+public Extension:__ext_core =
+{
+	name = "Core",
+	file = "core",
+	autoload = 0,
+	required = 0,
+};
+new MaxClients;
+public Extension:__ext_sdktools =
+{
+	name = "SDKTools",
+	file = "sdktools.ext",
+	autoload = 1,
+	required = 1,
+};
+new Handle:h_Enabled;
+new Handle:h_AWPEnabled;
+new Handle:h_MP5Enabled;
+new Handle:h_ScoutEnabled;
+new Handle:h_SG552Enabled;
+new Handle:h_ScoutBoost;
+new Handle:h_AWPBoost;
+new WeaponSpawn_ID[64];
+new WeaponSpawn_IDMod[64];
+new Float:WeaponSpawn_X[64];
+new Float:WeaponSpawn_Y[64];
+new Float:WeaponSpawn_Z[64];
+new String:Map[64];
+new String:GameMode[16];
+new bool:g_bNewMap;
+new bool:g_bScavengeHalftime;
+public Plugin:myinfo =
+{
+	name = "[L4D2] Weapon Unlock",
+	description = "Unlocks the hidden CSS weapons.",
+	author = "Crimson_Fox",
+	version = "0.8.1",
+	url = "http://forums.alliedmods.net/showthread.php?p=1041458"
+};
+public __ext_core_SetNTVOptional()
+{
+	MarkNativeAsOptional("GetFeatureStatus");
+	MarkNativeAsOptional("RequireFeature");
+	MarkNativeAsOptional("AddCommandListener");
+	MarkNativeAsOptional("RemoveCommandListener");
+	VerifyCoreVersion();
+	return 0;
+}
+
+bool:operator<(Float:,_:)(Float:oper1, oper2)
+{
+	return FloatCompare(oper1, float(oper2)) < 0;
+}
+
+bool:StrEqual(String:str1[], String:str2[], bool:caseSensitive)
+{
+	return strcmp(str1, str2, caseSensitive) == 0;
+}
+
+SetEntityHealth(entity, amount)
+{
+	static bool:gotconfig;
+	static String:prop[32];
+	if (!gotconfig)
+	{
+		new Handle:gc = LoadGameConfigFile("core.games");
+		new bool:exists = GameConfGetKeyValue(gc, "m_iHealth", prop, 32);
+		CloseHandle(gc);
+		if (!exists)
+		{
+			strcopy(prop, 32, "m_iHealth");
+		}
+		gotconfig = true;
+	}
+	decl String:cls[64];
+	new PropFieldType:type;
+	new offset;
+	if (!GetEntityNetClass(entity, cls, 64))
+	{
+		ThrowError("SetEntityHealth not supported by this mod: Could not get serverclass name");
+		return 0;
+	}
+	offset = FindSendPropInfo(cls, prop, type, 0, 0);
+	if (0 >= offset)
+	{
+		ThrowError("SetEntityHealth not supported by this mod");
+		return 0;
+	}
+	if (type == PropFieldType:2)
+	{
+		SetEntDataFloat(entity, offset, float(amount), false);
+	}
+	else
+	{
+		SetEntProp(entity, PropType:0, prop, amount, 4);
+	}
+	return 0;
+}
+
+public OnPluginStart()
+{
+	decl String:game[16];
+	GetGameFolderName(game, 16);
+	if (!StrEqual(game, "left4dead2", false))
+	{
+		SetFailState("Plugin supports Left 4 Dead 2 only.");
+	}
+	CreateConVar("l4d2_WeaponUnlock", "0.8.1", "Weapon Unlock version.", 401728, false, 0.0, false, 0.0);
+	h_Enabled = CreateConVar("l4d2_wu_enable", "1", "Is Weapon Unlock plug-in enabled?", 393216, false, 0.0, false, 0.0);
+	h_AWPEnabled = CreateConVar("l4d2_wu_awp", "1", "Enable AWP sniper rifle?", 262144, false, 0.0, false, 0.0);
+	h_MP5Enabled = CreateConVar("l4d2_wu_mp5", "1", "Enable MP5 submachine gun?", 262144, false, 0.0, false, 0.0);
+	h_ScoutEnabled = CreateConVar("l4d2_wu_scout", "1", "Enable Scout sniper rifle?", 262144, false, 0.0, false, 0.0);
+	h_SG552Enabled = CreateConVar("l4d2_wu_sg552", "1", "Enable SG552 assault rifle?", 262144, false, 0.0, false, 0.0);
+	h_AWPBoost = CreateConVar("l4d2_wu_awpboost", "135", "Amount of damage added to AWP sniper rifle.", 262144, false, 0.0, false, 0.0);
+	h_ScoutBoost = CreateConVar("l4d2_wu_scoutboost", "110", "Amount of damage added to scout sniper rifle.", 262144, false, 0.0, false, 0.0);
+	AutoExecConfig(true, "l4d2_WeaponUnlock", "sourcemod");
+	HookEvent("round_start", Event_RoundStart, EventHookMode:1);
+	HookEvent("scavenge_round_halftime", Event_ScavengeRoundHalftime, EventHookMode:1);
+	HookEvent("player_hurt", Event_PlayerHurt, EventHookMode:1);
+	HookConVarChange(h_Enabled, ConVarChange_Enabled);
+	PrecacheWeaponModels();
+	CreateTimer(1.0, InitHiddenWeaponsDelay, any:0, 0);
+	return 0;
+}
+
+PrecacheWeaponModels()
+{
+	if (!IsModelPrecached("models/w_models/weapons/w_rifle_sg552.mdl"))
+	{
+		PrecacheModel("models/w_models/weapons/w_rifle_sg552.mdl", false);
+	}
+	if (!IsModelPrecached("models/w_models/weapons/w_smg_mp5.mdl"))
+	{
+		PrecacheModel("models/w_models/weapons/w_smg_mp5.mdl", false);
+	}
+	if (!IsModelPrecached("models/w_models/weapons/w_sniper_awp.mdl"))
+	{
+		PrecacheModel("models/w_models/weapons/w_sniper_awp.mdl", false);
+	}
+	if (!IsModelPrecached("models/w_models/weapons/w_sniper_scout.mdl"))
+	{
+		PrecacheModel("models/w_models/weapons/w_sniper_scout.mdl", false);
+	}
+	if (!IsModelPrecached("models/w_models/weapons/w_eq_bile_flask.mld"))
+	{
+		PrecacheModel("models/w_models/weapons/w_eq_bile_flask.mld", false);
+	}
+	if (!IsModelPrecached("models/v_models/v_rif_sg552.mdl"))
+	{
+		PrecacheModel("models/v_models/v_rif_sg552.mdl", false);
+	}
+	if (!IsModelPrecached("models/v_models/v_smg_mp5.mdl"))
+	{
+		PrecacheModel("models/v_models/v_smg_mp5.mdl", false);
+	}
+	if (!IsModelPrecached("models/v_models/v_snip_awp.mdl"))
+	{
+		PrecacheModel("models/v_models/v_snip_awp.mdl", false);
+	}
+	if (!IsModelPrecached("models/v_models/v_snip_scout.mdl"))
+	{
+		PrecacheModel("models/v_models/v_snip_scout.mdl", false);
+	}
+	return 0;
+}
+
+public Action:InitHiddenWeaponsDelay(Handle:timer, any:client)
+{
+	new index = CreateEntityByName("weapon_rifle_sg552", -1);
+	DispatchSpawn(index);
+	RemoveEdict(index);
+	index = CreateEntityByName("weapon_smg_mp5", -1);
+	DispatchSpawn(index);
+	RemoveEdict(index);
+	index = CreateEntityByName("weapon_sniper_awp", -1);
+	DispatchSpawn(index);
+	RemoveEdict(index);
+	index = CreateEntityByName("weapon_sniper_scout", -1);
+	DispatchSpawn(index);
+	RemoveEdict(index);
+	GetCurrentMap(Map, 64);
+	ForceChangeLevel(Map, "Hidden weapon initialization.");
+	return Action:0;
+}
+
+public ConVarChange_Enabled(Handle:convar, String:oldValue[], String:newValue[])
+{
+	new var1;
+	if (StringToInt(oldValue, 10) == 1 && StringToInt(newValue, 10))
+	{
+		RestoreWeaponSpawns();
+	}
+	new var2;
+	if (StringToInt(oldValue, 10) && StringToInt(newValue, 10) == 1)
+	{
+		CreateTimer(0.1, RoundStartDelay, any:0, 0);
+	}
+	return 0;
+}
+
+public OnMapStart()
+{
+	g_bNewMap = true;
+	g_bScavengeHalftime = false;
+	new i;
+	while (i < 64)
+	{
+		WeaponSpawn_ID[i] = -1;
+		i++;
+	}
+	return 0;
+}
+
+public Action:Event_RoundStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (GetConVarInt(h_Enabled))
+	{
+		CreateTimer(1.0, RoundStartDelay, any:0, 0);
+		return Action:0;
+	}
+	return Action:0;
+}
+
+public Action:RoundStartDelay(Handle:timer)
+{
+	GetConVarString(FindConVar("mp_gamemode"), GameMode, 16);
+	if (StrEqual(GameMode, "survival", true))
+	{
+		return Action:0;
+	}
+	if (StrEqual(GameMode, "scavenge", true))
+	{
+		if (g_bScavengeHalftime == true)
+		{
+			g_bScavengeHalftime = false;
+		}
+		else
+		{
+			GetWeaponSpawns();
+		}
+		SetWeaponSpawns();
+		return Action:0;
+	}
+	if (StrEqual(GameMode, "versus", true))
+	{
+		if (g_bNewMap == true)
+		{
+			GetWeaponSpawns();
+			g_bNewMap = false;
+		}
+		SetWeaponSpawns();
+		return Action:0;
+	}
+	GetCurrentMap(Map, 64);
+	new var1;
+	if ((StrEqual(GameMode, "coop", true) || StrEqual(GameMode, "realism", true)) && (StrEqual(Map, "c4m1_milltown_a", true) || StrEqual(Map, "c4m2_sugarmill_a", true) || StrEqual(Map, "c4m3_sugarmill_b", true) || StrEqual(Map, "c4m4_milltown_b", true)))
+	{
+		return Action:0;
+	}
+	GetWeaponSpawns();
+	SetWeaponSpawns();
+	return Action:0;
+}
+
+public Action:Event_ScavengeRoundHalftime(Handle:event, String:name[], bool:dontBroadcast)
+{
+	g_bScavengeHalftime = true;
+	return Action:0;
+}
+
+public Action:Event_PlayerHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new target = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (target)
+	{
+		if (GetClientTeam(target) != 3)
+		{
+			return Action:0;
+		}
+		decl String:weapon[16];
+		GetEventString(event, "weapon", weapon, 16);
+		if (StrEqual(weapon, "sniper_awp", true))
+		{
+			new health = GetClientHealth(target);
+			new damage = GetConVarInt(h_AWPBoost);
+			if (0 > health - damage)
+			{
+				SetEntityHealth(target, 0);
+			}
+			else
+			{
+				SetEntityHealth(target, health - damage);
+			}
+		}
+		if (StrEqual(weapon, "sniper_scout", true))
+		{
+			new health = GetClientHealth(target);
+			new damage = GetConVarInt(h_ScoutBoost);
+			if (0 > health - damage)
+			{
+				SetEntityHealth(target, 0);
+			}
+			else
+			{
+				SetEntityHealth(target, health - damage);
+			}
+		}
+		return Action:0;
+	}
+	return Action:0;
+}
+
+GetWeaponSpawns()
+{
+	decl String:EdictClassName[32];
+	new count;
+	new i;
+	while (GetEntityCount() >= i)
+	{
+		if (IsValidEntity(i))
+		{
+			GetEdictClassname(i, EdictClassName, 32);
+			if (StrEqual(EdictClassName, "weapon_spawn", true))
+			{
+				new Float:Location[3] = 0.0;
+				GetEntPropVector(i, PropType:0, "m_vecOrigin", Location);
+				WeaponSpawn_ID[count] = GetEntProp(i, PropType:0, "m_weaponID", 4);
+				WeaponSpawn_X[count] = Location[0];
+				WeaponSpawn_Y[count] = Location[1];
+				WeaponSpawn_Z[count] = Location[2];
+				count++;
+			}
+		}
+		i++;
+	}
+	new var1;
+	if (count && !StrEqual(GameMode, "scavenge", true))
+	{
+		new i;
+		while (i < 64)
+		{
+			if (!(WeaponSpawn_ID[i] == -1))
+			{
+				WeaponSpawn_IDMod[i] = WeaponSpawn_ID[i];
+				switch (WeaponSpawn_ID[i])
+				{
+					case 2:
+					{
+						new var8;
+						if (GetConVarInt(h_MP5Enabled) == 1 && GetRandomInt(1, 3) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 33;
+						}
+					}
+					case 5:
+					{
+						new var7;
+						if (GetConVarInt(h_SG552Enabled) == 1 && GetRandomInt(1, 4) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 34;
+						}
+					}
+					case 6:
+					{
+						new var6;
+						if (GetConVarInt(h_ScoutEnabled) == 1 && GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 36;
+						}
+					}
+					case 7:
+					{
+						new var5;
+						if (GetConVarInt(h_MP5Enabled) == 1 && GetRandomInt(1, 3) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 33;
+						}
+					}
+					case 9:
+					{
+						new var4;
+						if (GetConVarInt(h_SG552Enabled) == 1 && GetRandomInt(1, 4) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 34;
+						}
+					}
+					case 10:
+					{
+						new var3;
+						if (GetConVarInt(h_AWPEnabled) == 1 && GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 35;
+						}
+					}
+					case 26:
+					{
+						new var2;
+						if (GetConVarInt(h_SG552Enabled) == 1 && GetRandomInt(1, 4) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 34;
+						}
+					}
+					default:
+					{
+					}
+				}
+				i++;
+			}
+		}
+	}
+	else
+	{
+		new i;
+		while (GetEntityCount() >= i)
+		{
+			if (IsValidEntity(i))
+			{
+				GetEdictClassname(i, EdictClassName, 32);
+				new var9;
+				if (StrEqual(EdictClassName, "weapon_autoshotgun_spawn", true) || StrEqual(EdictClassName, "weapon_hunting_rifle_spawn", true) || StrEqual(EdictClassName, "weapon_molotov_spawn", true) || StrEqual(EdictClassName, "weapon_pipe_bomb_spawn", true) || StrEqual(EdictClassName, "weapon_pistol_magnum_spawn", true) || StrEqual(EdictClassName, "weapon_pistol_spawn", true) || StrEqual(EdictClassName, "weapon_pumpshotgun_spawn", true) || StrEqual(EdictClassName, "weapon_rifle_ak47_spawn", true) || StrEqual(EdictClassName, "weapon_rifle_desert_spawn", true) || StrEqual(EdictClassName, "weapon_rifle_spawn", true) || StrEqual(EdictClassName, "weapon_shotgun_chrome_spawn", true) || StrEqual(EdictClassName, "weapon_shotgun_spas_spawn", true) || StrEqual(EdictClassName, "weapon_smg_spawn", true) || StrEqual(EdictClassName, "weapon_smg_silenced_spawn", true) || StrEqual(EdictClassName, "weapon_sniper_military_spawn", true) || StrEqual(EdictClassName, "weapon_vomitjar_spawn", true))
+				{
+					new Float:Location[3] = 0.0;
+					GetEntPropVector(i, PropType:0, "m_vecOrigin", Location);
+					WeaponSpawn_ID[count] = GetEntProp(i, PropType:0, "m_weaponID", 4);
+					WeaponSpawn_X[count] = Location[0];
+					WeaponSpawn_Y[count] = Location[1];
+					WeaponSpawn_Z[count] = Location[2];
+					count++;
+				}
+			}
+			i++;
+		}
+		new i;
+		while (i < 64)
+		{
+			if (!(WeaponSpawn_ID[i] == -1))
+			{
+				WeaponSpawn_IDMod[i] = WeaponSpawn_ID[i];
+				switch (WeaponSpawn_ID[i])
+				{
+					case 1:
+					{
+						if (GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 32;
+						}
+					}
+					case 2:
+					{
+						if (GetConVarInt(h_MP5Enabled) == 1)
+						{
+							switch (GetRandomInt(1, 3))
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 33;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 7;
+								}
+								default:
+								{
+								}
+							}
+						}
+						else
+						{
+							if (GetRandomInt(1, 2) == 1)
+							{
+								WeaponSpawn_IDMod[i] = 7;
+							}
+						}
+					}
+					case 3:
+					{
+						if (GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 8;
+						}
+					}
+					case 4:
+					{
+						if (GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 11;
+						}
+					}
+					case 5:
+					{
+						if (GetConVarInt(h_SG552Enabled) == 1)
+						{
+							switch (GetRandomInt(1, 4))
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 34;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 9;
+								}
+								case 3:
+								{
+									WeaponSpawn_IDMod[i] = 26;
+								}
+								default:
+								{
+								}
+							}
+						}
+						else
+						{
+							switch (GetRandomInt(1, 3) == 1)
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 9;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 26;
+								}
+								default:
+								{
+								}
+							}
+						}
+					}
+					case 6:
+					{
+						if (GetConVarInt(h_AWPEnabled) == 1)
+						{
+							switch (GetRandomInt(1, 2))
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 35;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 10;
+								}
+								default:
+								{
+								}
+							}
+						}
+						else
+						{
+							WeaponSpawn_IDMod[i] = 10;
+						}
+					}
+					case 7:
+					{
+						if (GetConVarInt(h_MP5Enabled) == 1)
+						{
+							switch (GetRandomInt(1, 3))
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 33;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 2;
+								}
+								default:
+								{
+								}
+							}
+						}
+						else
+						{
+							if (GetRandomInt(1, 2) == 1)
+							{
+								WeaponSpawn_IDMod[i] = 2;
+							}
+						}
+					}
+					case 8:
+					{
+						if (GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 3;
+						}
+					}
+					case 9:
+					{
+						if (GetConVarInt(h_SG552Enabled) == 1)
+						{
+							switch (GetRandomInt(1, 4))
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 34;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 26;
+								}
+								case 3:
+								{
+									WeaponSpawn_IDMod[i] = 5;
+								}
+								default:
+								{
+								}
+							}
+						}
+						else
+						{
+							switch (GetRandomInt(1, 3) == 1)
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 26;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 5;
+								}
+								default:
+								{
+								}
+							}
+						}
+					}
+					case 10:
+					{
+						new var10;
+						if (GetConVarInt(h_AWPEnabled) == 1 && GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 35;
+						}
+					}
+					case 11:
+					{
+						if (GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 4;
+						}
+					}
+					case 13:
+					{
+						switch (GetRandomInt(1, 3))
+						{
+							case 1:
+							{
+								WeaponSpawn_IDMod[i] = 14;
+							}
+							case 2:
+							{
+								WeaponSpawn_IDMod[i] = 25;
+							}
+							default:
+							{
+							}
+						}
+					}
+					case 14:
+					{
+						switch (GetRandomInt(1, 3))
+						{
+							case 1:
+							{
+								WeaponSpawn_IDMod[i] = 25;
+							}
+							case 2:
+							{
+								WeaponSpawn_IDMod[i] = 13;
+							}
+							default:
+							{
+							}
+						}
+					}
+					case 25:
+					{
+						switch (GetRandomInt(1, 3))
+						{
+							case 1:
+							{
+								WeaponSpawn_IDMod[i] = 13;
+							}
+							case 2:
+							{
+								WeaponSpawn_IDMod[i] = 14;
+							}
+							default:
+							{
+							}
+						}
+					}
+					case 26:
+					{
+						if (GetConVarInt(h_SG552Enabled) == 1)
+						{
+							switch (GetRandomInt(1, 4))
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 34;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 9;
+								}
+								case 3:
+								{
+									WeaponSpawn_IDMod[i] = 5;
+								}
+								default:
+								{
+								}
+							}
+						}
+						else
+						{
+							switch (GetRandomInt(1, 3) == 1)
+							{
+								case 1:
+								{
+									WeaponSpawn_IDMod[i] = 9;
+								}
+								case 2:
+								{
+									WeaponSpawn_IDMod[i] = 5;
+								}
+								default:
+								{
+								}
+							}
+						}
+					}
+					case 32:
+					{
+						if (GetRandomInt(1, 2) == 1)
+						{
+							WeaponSpawn_IDMod[i] = 1;
+						}
+					}
+					default:
+					{
+					}
+				}
+				i++;
+			}
+		}
+	}
+	return 0;
+}
+
+SetWeaponSpawns()
+{
+	PrecacheWeaponModels();
+	decl String:EdictClassName[32];
+	new i;
+	while (GetEntityCount() >= i)
+	{
+		if (IsValidEntity(i))
+		{
+			GetEdictClassname(i, EdictClassName, 32);
+			new var1;
+			if (StrEqual(EdictClassName, "weapon_spawn", true) || StrEqual(EdictClassName, "weapon_autoshotgun_spawn", true) || StrEqual(EdictClassName, "weapon_hunting_rifle_spawn", true) || StrEqual(EdictClassName, "weapon_molotov_spawn", true) || StrEqual(EdictClassName, "weapon_pipe_bomb_spawn", true) || StrEqual(EdictClassName, "weapon_pistol_magnum_spawn", true) || StrEqual(EdictClassName, "weapon_pistol_spawn", true) || StrEqual(EdictClassName, "weapon_pumpshotgun_spawn", true) || StrEqual(EdictClassName, "weapon_rifle_ak47_spawn", true) || StrEqual(EdictClassName, "weapon_rifle_desert_spawn", true) || StrEqual(EdictClassName, "weapon_rifle_spawn", true) || StrEqual(EdictClassName, "weapon_shotgun_chrome_spawn", true) || StrEqual(EdictClassName, "weapon_shotgun_spas_spawn", true) || StrEqual(EdictClassName, "weapon_smg_spawn", true) || StrEqual(EdictClassName, "weapon_smg_silenced_spawn", true) || StrEqual(EdictClassName, "weapon_sniper_military_spawn", true) || StrEqual(EdictClassName, "weapon_vomitjar_spawn", true))
+			{
+				new Float:Location[3] = 0.0;
+				GetEntPropVector(i, PropType:0, "m_vecOrigin", Location);
+				new weaponID = GetEntProp(i, PropType:0, "m_weaponID", 4);
+				new x;
+				while (x < 64)
+				{
+					if (!(WeaponSpawn_ID[x] == -1))
+					{
+						new var2;
+						if ((FloatAbs(WeaponSpawn_X[x] - Location[0]) < 2 && FloatAbs(WeaponSpawn_Y[x] - Location[1]) < 2 && FloatAbs(WeaponSpawn_Z[x] - Location[2]) < 2) && WeaponSpawn_IDMod[x] != weaponID)
+						{
+							ReplaceWeaponSpawn(i, x);
+						}
+						x++;
+					}
+				}
+			}
+		}
+		i++;
+	}
+	return 0;
+}
+
+RestoreWeaponSpawns()
+{
+	decl String:EdictClassName[32];
+	new i;
+	while (GetEntityCount() >= i)
+	{
+		if (IsValidEntity(i))
+		{
+			GetEdictClassname(i, EdictClassName, 32);
+			if (StrEqual(EdictClassName, "weapon_spawn", true))
+			{
+				new Float:Location[3] = 0.0;
+				GetEntPropVector(i, PropType:0, "m_vecOrigin", Location);
+				new weaponID = GetEntProp(i, PropType:0, "m_weaponID", 4);
+				new x;
+				while (x < 64)
+				{
+					if (!(WeaponSpawn_ID[x] == -1))
+					{
+						new var1;
+						if ((FloatAbs(WeaponSpawn_X[x] - Location[0]) < 2 && FloatAbs(WeaponSpawn_Y[x] - Location[1]) < 2 && FloatAbs(WeaponSpawn_Z[x] - Location[2]) < 2) && WeaponSpawn_ID[x] != weaponID)
+						{
+							new Float:Angles[3] = 0.0;
+							GetEntPropVector(i, PropType:0, "m_angRotation", Angles);
+							RemoveEdict(i);
+							new index = CreateEntityByName("weapon_spawn", -1);
+							switch (WeaponSpawn_ID[x])
+							{
+								case 1:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_pistol_a.mdl");
+								}
+								case 2:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_smg_uzi.mdl");
+								}
+								case 3:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_shotgun.mdl");
+								}
+								case 4:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_autoshot_m4super.mdl");
+								}
+								case 5:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_rifle_m16a2.mdl");
+								}
+								case 6:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_sniper_mini14.mdl");
+								}
+								case 7:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_smg_a.mdl");
+								}
+								case 8:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_pumpshotgun_a.mdl");
+								}
+								case 9:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_desert_rifle.mdl");
+								}
+								case 10:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_sniper_military.mdl");
+								}
+								case 11:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_shotgun_spas.mdl");
+								}
+								case 13:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_eq_molotov.mdl");
+								}
+								case 14:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_eq_pipebomb.mdl");
+								}
+								case 25:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_eq_bile_flask.mld");
+								}
+								case 26:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_rifle_ak47.mdl");
+								}
+								case 32:
+								{
+									SetEntityModel(index, "models/w_models/weapons/w_desert_eagle.mdl");
+								}
+								default:
+								{
+								}
+							}
+							SetEntProp(index, PropType:0, "m_weaponID", WeaponSpawn_ID[x], 4);
+							TeleportEntity(index, Location, Angles, NULL_VECTOR);
+							new var3;
+							if (WeaponSpawn_ID[x] == 25 || WeaponSpawn_ID[x] == 14 || WeaponSpawn_ID[x] == 13)
+							{
+								DispatchKeyValue(index, "count", "1");
+							}
+							else
+							{
+								DispatchKeyValue(index, "count", "4");
+							}
+							DispatchSpawn(index);
+						}
+						x++;
+					}
+				}
+			}
+		}
+		i++;
+	}
+	return 0;
+}
+
+ReplaceWeaponSpawn(target, source)
+{
+	new Float:Origin[3] = 0.0;
+	Origin[0] = WeaponSpawn_X[source];
+	Origin[1] = WeaponSpawn_Y[source];
+	Origin[2] = WeaponSpawn_Z[source];
+	new Float:Angles[3] = 0.0;
+	GetEntPropVector(target, PropType:0, "m_angRotation", Angles);
+	RemoveEdict(target);
+	new index = CreateEntityByName("weapon_spawn", -1);
+	switch (WeaponSpawn_IDMod[source])
+	{
+		case 1:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_pistol_a.mdl");
+		}
+		case 2:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_smg_uzi.mdl");
+		}
+		case 3:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_shotgun.mdl");
+		}
+		case 4:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_autoshot_m4super.mdl");
+		}
+		case 5:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_rifle_m16a2.mdl");
+		}
+		case 6:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_sniper_mini14.mdl");
+		}
+		case 7:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_smg_a.mdl");
+		}
+		case 8:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_pumpshotgun_a.mdl");
+		}
+		case 9:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_desert_rifle.mdl");
+		}
+		case 10:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_sniper_military.mdl");
+		}
+		case 11:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_shotgun_spas.mdl");
+		}
+		case 13:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_eq_molotov.mdl");
+		}
+		case 14:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_eq_pipebomb.mdl");
+		}
+		case 25:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_eq_bile_flask.mld");
+		}
+		case 26:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_rifle_ak47.mdl");
+		}
+		case 32:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_desert_eagle.mdl");
+		}
+		case 33:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_smg_mp5.mdl");
+		}
+		case 34:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_rifle_sg552.mdl");
+		}
+		case 35:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_sniper_awp.mdl");
+		}
+		case 36:
+		{
+			SetEntityModel(index, "models/w_models/weapons/w_sniper_scout.mdl");
+		}
+		default:
+		{
+		}
+	}
+	SetEntProp(index, PropType:0, "m_weaponID", WeaponSpawn_IDMod[source], 4);
+	TeleportEntity(index, Origin, Angles, NULL_VECTOR);
+	new var1;
+	if (WeaponSpawn_IDMod[source] == 25 || WeaponSpawn_IDMod[source] == 14 || WeaponSpawn_IDMod[source] == 13)
+	{
+		DispatchKeyValue(index, "count", "1");
+	}
+	else
+	{
+		DispatchKeyValue(index, "count", "4");
+	}
+	DispatchSpawn(index);
+	return 0;
+}
+

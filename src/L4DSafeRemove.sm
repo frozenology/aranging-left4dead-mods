@@ -1,0 +1,183 @@
+public PlVers:__version =
+{
+	version = 5,
+	filevers = "1.2.0",
+	date = "04/30/2009",
+	time = "15:42:36"
+};
+new Float:NULL_VECTOR[3];
+new String:NULL_STRING[4];
+public Extension:__ext_core =
+{
+	name = "Core",
+	file = "core",
+	autoload = 0,
+	required = 0,
+};
+new MaxClients;
+public Extension:__ext_sdktools =
+{
+	name = "SDKTools",
+	file = "sdktools.ext",
+	autoload = 1,
+	required = 1,
+};
+public Plugin:myinfo =
+{
+	name = "[L4D]  No More Safe",
+	description = "No More Safe",
+	author = "Frozenology",
+	version = "1.0",
+	url = "frozenology.com"
+};
+new HCVarDoorRemoveEnabled;
+new HCVarDoorRemoveMaxTime;
+new HDoorRemoveTimer;
+new DoorRemoveTime;
+public __ext_core_SetNTVOptional()
+{
+	VerifyCoreVersion();
+	return 0;
+}
+
+public OnPluginStart()
+{
+	CreateConVar("l4d_nomoresafe_version", "1.0", "arang director", 270656, false, 0.0, false, 0.0);
+	HCVarDoorRemoveEnabled = CreateConVar("arang_nomoresafe_enabled", "1", "Enforce safe room door remove", 262144, false, 0.0, false, 0.0);
+	HCVarDoorRemoveMaxTime = CreateConVar("arang_nomoresafe_maxtime", "120", "Maximum Time to Remove Safe Door", 262144, false, 0.0, false, 0.0);
+	Init_Events();
+	DoorRemove_Reset();
+	return 0;
+}
+
+public OnMapStart()
+{
+	DoorRemove_Reset();
+	return 0;
+}
+
+public Init_Events()
+{
+	HookEvent("round_start", Event_GameStart, EventHookMode:1);
+	HookEvent("player_transitioned", Event_GameStart, EventHookMode:1);
+	HookEvent("player_entered_checkpoint", Event_PlayerEnteredCheckPoint, EventHookMode:2);
+	return 0;
+}
+
+public Action:Event_GameStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	DoorRemove_Reset();
+	return Action:0;
+}
+
+public Action:Event_PlayerEnteredCheckPoint(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (0 >= GetConVarInt(HCVarDoorRemoveEnabled))
+	{
+		return Action:0;
+	}
+	new String:DoorName[256];
+	GetEventString(event, "doorname", DoorName, 255);
+	if (StrContains(DoorName, "exit", false) != -1)
+	{
+		if (!DoorRemoveTime)
+		{
+			DoorRemoveTime = 1;
+			new Ent = GetEventInt(event, "door");
+			if (!HDoorRemoveTimer)
+			{
+				HDoorRemoveTimer = CreateTimer(1.0, DoorRemove_Timer, Ent, 3);
+				Display(0, 0, "Safe Room Door will remove in %i seconds", GetConVarInt(HCVarDoorRemoveMaxTime));
+			}
+		}
+	}
+	return Action:0;
+}
+
+public DoorRemove_Reset()
+{
+	DoorRemoveTime = 0;
+	HDoorRemoveTimer = 0;
+	return 0;
+}
+
+public Action:DoorRemove_Timer(Handle:timer, any:Ent)
+{
+	if (timer != HDoorRemoveTimer)
+	{
+		return Action:4;
+	}
+	if (0 < DoorRemoveTime)
+	{
+		new DoorRemoveMaxTime = GetConVarInt(HCVarDoorRemoveMaxTime);
+		new RemTime = DoorRemoveMaxTime - DoorRemoveTime;
+		new var1;
+		if (RemTime > 0 && RemTime < 10)
+		{
+			Display(0, 0, "Safe Room Door will remove in %i seconds...", DoorRemoveMaxTime - DoorRemoveTime);
+		}
+		if (DoorRemoveTime >= DoorRemoveMaxTime)
+		{
+			if (IsValidEntity(Ent))
+			{
+				RemoveEdict(Ent);
+				Display(0, 0, "Safe Room Door has been removed...");
+				return Action:4;
+			}
+		}
+	}
+	DoorRemoveTime += 1;
+	return Action:0;
+}
+
+public Display(client, Mode, String:format[])
+{
+	decl String:Buffer[192];
+	VFormat(Buffer, 192, format, 4);
+	if (client)
+	{
+		DisplayText(client, Mode, Buffer);
+	}
+	else
+	{
+		PrintToServer(Buffer);
+		new Index = 1;
+		while (GetMaxClients() >= Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				DisplayText(Index, Mode, Buffer);
+			}
+			Index++;
+		}
+	}
+	return 0;
+}
+
+public DisplayText(client, Mode, String:Text[])
+{
+	switch (Mode)
+	{
+		case 0:
+		{
+			PrintToChat(client, Text);
+		}
+		case 1:
+		{
+			PrintHintText(client, Text);
+		}
+		case 2:
+		{
+			PrintCenterText(client, Text);
+		}
+		case 3:
+		{
+			PrintToChat(client, Text);
+		}
+		default:
+		{
+		}
+	}
+	return 0;
+}
+

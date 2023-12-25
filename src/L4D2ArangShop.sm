@@ -1,0 +1,4260 @@
+public PlVers:__version =
+{
+	version = 5,
+	filevers = "1.3.2-dev",
+	date = "04/25/2010",
+	time = "13:45:03"
+};
+new Float:NULL_VECTOR[3];
+new String:NULL_STRING[4];
+public Extension:__ext_core =
+{
+	name = "Core",
+	file = "core",
+	autoload = 0,
+	required = 0,
+};
+new MaxClients;
+public Extension:__ext_sdktools =
+{
+	name = "SDKTools",
+	file = "sdktools.ext",
+	autoload = 1,
+	required = 1,
+};
+public Plugin:myinfo =
+{
+	name = "[L4D2] Aranging Shopping Menu by Frozenology",
+	description = "Aranging Shopping Menu",
+	author = "Frozenology",
+	version = "2.4",
+	url = "www.aranghq.com"
+};
+new GameMode;
+new HPlayerHealthOffs;
+new HPlayerMaxHealthOffs;
+new HPlayerIsIncapOffs;
+new Handle:HCVarShopEn;
+new Handle:HCVarForceBind;
+new Handle:HCVarShopFree;
+new Handle:HCVarShopInitialValue;
+new Handle:HCVarShopInitialPriceScale;
+new Handle:HCVarShopMaxValue;
+new Handle:HCVarShopIncomeMult;
+new Handle:HCVarShopLoseOnFailed;
+new Handle:HCVarShopLoseOnDead;
+new Handle:HCVarShopEnWeapon;
+new Handle:HCVarShopEnAmmo;
+new Handle:HCVarShopEnMelee;
+new Handle:HCVarShopEnMeleeAll;
+new Handle:HCVarShopEnHeal;
+new Handle:HCVarShopEnSpecial;
+new Handle:HCVarShopEnSpecialTeam;
+new Handle:HCVarShopEnUpgrade;
+new Handle:HCVarShopEnZombie;
+new Handle:HCVarShopEnUtilities;
+new Handle:HCVarShopUsageEn;
+new Handle:HCVarShopHoldoutInitialValue;
+new Handle:HCVarShopHoldoutStReset;
+new Handle:HCVarShopRTDEn;
+new Handle:HCVarShopRTDValue;
+new Handle:HCVarShopRTDInteval;
+new Handle:HCVarShopVersusStReset;
+new Handle:HCVarShopInfectedGainValue;
+new HCVarShopInfectedGainInteval;
+new String:CurrentMap[64];
+new ShopMaxValue;
+new InitialValue;
+new InitialPriceScale;
+new HunterValue;
+new SmokerValue;
+new BoomerValue;
+new ChargerValue;
+new SpitterValue;
+new JockeyValue;
+new WitchValue;
+new WitchValueExtra;
+new TankValue;
+new TankValueExtra;
+new ReviveValue;
+new ReviveLastLifeValue;
+new CostPlayerDeath;
+new CostPlayerFailed;
+new LenSlowMo;
+new LenImmune;
+new LenAmmoInfinity;
+new LenFireBullet[65];
+new LenFreezingBullet[65];
+new LenAcidBullet[65];
+new LenHighJump[65];
+new LenSpeedShoe[65];
+new LenHealthRegen[65];
+new LenFlameShield[65];
+new LenVampiric[65];
+new bool:IsShoppingFree;
+new bool:IsShopPassOnce;
+new bool:IsRTDPassOnce;
+new DiceTick;
+new DiceTime[65];
+new Handle:HCVarZSpeed;
+new Handle:HCVarGod;
+new Handle:HCVarInifnityAmmo;
+new bool:IsActiveSlowMo;
+new bool:IsActiveImmune;
+new bool:IsActiveAmmoInfinity;
+new DefZSpeed;
+new IsActiveFireBullet[65];
+new IsActiveAcidBullet[65];
+new IsActiveFreezingBullet[65];
+new PlayersFrozen[65];
+new HCVarFirstAidMaxHeal;
+new HCVarFirstAidHealPercent;
+new PlayersMaxHealth[65];
+new PlayersHealthRegen[65];
+new PlayersHalfPriceHealing[65];
+new IsActiveFlameShield[65];
+new IsActiveVampiric[65];
+new HSpeedShoeOffs;
+new PlayersSpeedShoe[65];
+new PlayersHighJump[65];
+new Handle:HCVarAmmoMax[9];
+new DefAmmoMax[9];
+new Handle:HCVarFirstAidUseDuration;
+new Handle:HCVarSurvivorReviveDuration;
+new Handle:HCVarSurvivorReviveHealth;
+new UpCount_Ammo1;
+new UpCount_Ammo2;
+new UpCount_FirstAidUseDuration;
+new UpCount_SurvivorReviveEffect;
+new UpCountMax_FirstAidUseDuration;
+new UpCountMax_SurvivorReviveEffect;
+new PlayersHealthUpgrades[65];
+new PlayersPrevHealth[65];
+new PlayersCash[65];
+new Float:PlayersPriceScale[65];
+public __ext_core_SetNTVOptional()
+{
+	MarkNativeAsOptional("GetFeatureStatus");
+	MarkNativeAsOptional("RequireFeature");
+	MarkNativeAsOptional("AddCommandListener");
+	MarkNativeAsOptional("RemoveCommandListener");
+	VerifyCoreVersion();
+	return 0;
+}
+
+Float:operator*(Float:,_:)(Float:oper1, oper2)
+{
+	return oper1 * float(oper2);
+}
+
+Float:operator+(Float:,_:)(Float:oper1, oper2)
+{
+	return oper1 + float(oper2);
+}
+
+bool:operator>(Float:,_:)(Float:oper1, oper2)
+{
+	return FloatCompare(oper1, float(oper2)) > 0;
+}
+
+bool:StrEqual(String:str1[], String:str2[], bool:caseSensitive)
+{
+	return strcmp(str1, str2, caseSensitive) == 0;
+}
+
+ExplodeString(String:text[], String:split[], String:buffers[][], maxStrings, maxStringLength)
+{
+	new reloc_idx;
+	new idx;
+	new total;
+	new var1;
+	if (maxStrings < 1 || split[0])
+	{
+		return 0;
+	}
+	while ((idx = SplitString(text[reloc_idx], split, buffers[total], maxStringLength)) != -1)
+	{
+		reloc_idx = idx + reloc_idx;
+		if (text[reloc_idx])
+		{
+			total++;
+			if (total >= maxStrings)
+			{
+				return total;
+			}
+		}
+		new var2;
+		if (text[reloc_idx] && total <= maxStrings + -1)
+		{
+			total++;
+			strcopy(buffers[total], maxStringLength, text[reloc_idx]);
+		}
+		return total;
+	}
+	new var2;
+	if (text[reloc_idx] && total <= maxStrings + -1)
+	{
+		total++;
+		strcopy(buffers[total], maxStringLength, text[reloc_idx]);
+	}
+	return total;
+}
+
+GetEntSendPropOffs(ent, String:prop[], bool:actual)
+{
+	decl String:cls[64];
+	if (!GetEntityNetClass(ent, cls, 64))
+	{
+		return -1;
+	}
+	if (actual)
+	{
+		return FindSendPropInfo(cls, prop, 0, 0, 0);
+	}
+	return FindSendPropOffs(cls, prop);
+}
+
+SetEntityMoveType(entity, MoveType:mt)
+{
+	static bool:gotconfig;
+	static String:datamap[32];
+	if (!gotconfig)
+	{
+		new Handle:gc = LoadGameConfigFile("core.games");
+		new bool:exists = GameConfGetKeyValue(gc, "m_MoveType", datamap, 32);
+		CloseHandle(gc);
+		if (!exists)
+		{
+			strcopy(datamap, 32, "m_MoveType");
+		}
+		gotconfig = true;
+	}
+	SetEntProp(entity, PropType:1, datamap, mt, 4);
+	return 0;
+}
+
+SetEntityRenderColor(entity, r, g, b, a)
+{
+	static bool:gotconfig;
+	static String:prop[32];
+	if (!gotconfig)
+	{
+		new Handle:gc = LoadGameConfigFile("core.games");
+		new bool:exists = GameConfGetKeyValue(gc, "m_clrRender", prop, 32);
+		CloseHandle(gc);
+		if (!exists)
+		{
+			strcopy(prop, 32, "m_clrRender");
+		}
+		gotconfig = true;
+	}
+	new offset = GetEntSendPropOffs(entity, prop, false);
+	if (0 >= offset)
+	{
+		ThrowError("SetEntityRenderColor not supported by this mod");
+	}
+	SetEntData(entity, offset, r, 1, true);
+	SetEntData(entity, offset + 1, g, 1, true);
+	SetEntData(entity, offset + 2, b, 1, true);
+	SetEntData(entity, offset + 3, a, 1, true);
+	return 0;
+}
+
+SetEntityGravity(entity, Float:amount)
+{
+	static bool:gotconfig;
+	static String:datamap[32];
+	if (!gotconfig)
+	{
+		new Handle:gc = LoadGameConfigFile("core.games");
+		new bool:exists = GameConfGetKeyValue(gc, "m_flGravity", datamap, 32);
+		CloseHandle(gc);
+		if (!exists)
+		{
+			strcopy(datamap, 32, "m_flGravity");
+		}
+		gotconfig = true;
+	}
+	SetEntPropFloat(entity, PropType:1, datamap, amount);
+	return 0;
+}
+
+EmitSoundToClient(client, String:sample[], entity, channel, level, flags, Float:volume, pitch, speakerentity, Float:origin[3], Float:dir[3], bool:updatePos, Float:soundtime)
+{
+	new clients[1];
+	clients[0] = client;
+	new var1;
+	if (entity == -2)
+	{
+		var1 = client;
+	}
+	else
+	{
+		var1 = entity;
+	}
+	entity = var1;
+	EmitSound(clients, 1, sample, entity, channel, level, flags, volume, pitch, speakerentity, origin, dir, updatePos, soundtime);
+	return 0;
+}
+
+EmitSoundToAll(String:sample[], entity, channel, level, flags, Float:volume, pitch, speakerentity, Float:origin[3], Float:dir[3], bool:updatePos, Float:soundtime)
+{
+	new clients[MaxClients];
+	new total;
+	new i = 1;
+	while (i <= MaxClients)
+	{
+		if (IsClientInGame(i))
+		{
+			total++;
+			clients[total] = i;
+		}
+		i++;
+	}
+	if (!total)
+	{
+		return 0;
+	}
+	EmitSound(clients, total, sample, entity, channel, level, flags, volume, pitch, speakerentity, origin, dir, updatePos, soundtime);
+	return 0;
+}
+
+public OnPluginStart()
+{
+	GameMode = L4DGameMode();
+	CreateConVar("arang_version", "2.4", "Aranging Shop", 270656, false, 0.0, false, 0.0);
+	HCVarShopEn = CreateConVar("arang_shop_enabled", "1", "Aranging Shopping Enable", 262208, false, 0.0, false, 0.0);
+	HCVarShopUsageEn = CreateConVar("arang_shop_usage_enabled", "1", "Aranging Shopping Usage Enable", 262208, false, 0.0, false, 0.0);
+	HCVarForceBind = CreateConVar("arang_shop_autobind", "1", "Auto binding key for shop", 262208, false, 0.0, false, 0.0);
+	HCVarShopFree = CreateConVar("arang_shop_free", "0", "Free Aranging Shopping ", 262208, false, 0.0, false, 0.0);
+	HCVarShopInitialValue = CreateConVar("arang_shop_power_initial", "0", "Initial Aranging Power", 262208, false, 0.0, false, 0.0);
+	HCVarShopInitialPriceScale = CreateConVar("arang_shop_power_pricescale", "1.0", "Initial Shop Price Scale", 262208, false, 0.0, false, 0.0);
+	HCVarShopMaxValue = CreateConVar("arang_shop_power_maximum", "0", "Maximum Aranging Power", 262208, false, 0.0, false, 0.0);
+	HCVarShopIncomeMult = CreateConVar("arang_shop_income_multipler", "1.0", "Aranging Power Income Multipler", 262208, false, 0.0, false, 0.0);
+	HCVarShopLoseOnFailed = CreateConVar("arang_shop_loseonfailed", "1500", "Lose Aranging Power on Failed", 262208, false, 0.0, false, 0.0);
+	HCVarShopLoseOnDead = CreateConVar("arang_shop_loseondead", "500", "Lose Aranging Power on a Player Dead", 262208, false, 0.0, false, 0.0);
+	HCVarShopHoldoutInitialValue = CreateConVar("arang_shop_holdout_power_initial", "10000", "Initial Aranging Power for holdout mode", 262208, false, 0.0, false, 0.0);
+	HCVarShopHoldoutStReset = CreateConVar("arang_shop_holdout_endreset", "1", "Reset shop every start new holdout round", 262208, false, 0.0, false, 0.0);
+	HCVarShopVersusStReset = CreateConVar("arang_shop_versus_endreset", "1", "Reset shop every start new versus level", 262208, false, 0.0, false, 0.0);
+	HCVarShopInfectedGainInteval = CreateConVar("arang_shop_autogain_infected_inteval", "1.0", "Auto Gain Time Inteval of Aranging Power for Infected", 262208, false, 0.0, false, 0.0);
+	HCVarShopInfectedGainValue = CreateConVar("arang_shop_autogain_infected", "20", "Auto Gain Aranging Power for Infected", 262208, false, 0.0, false, 0.0);
+	HCVarShopRTDEn = CreateConVar("arang_roll_enable", "1", "RTD Enable", 262208, false, 0.0, false, 0.0);
+	HCVarShopRTDValue = CreateConVar("arang_roll_value", "800", "RTD Value", 262208, false, 0.0, false, 0.0);
+	HCVarShopRTDInteval = CreateConVar("arang_roll_inteval", "5", "RTD Time inteval between using", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnWeapon = CreateConVar("arang_shop_sells_weapon", "1", "Show Weapon Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnMelee = CreateConVar("arang_shop_sells_melee", "1", "Show Melee Weapon Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnMeleeAll = CreateConVar("arang_shop_sells_melee_all", "0", "Show All Melee Weapon Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnAmmo = CreateConVar("arang_shop_sells_ammo", "1", "Show Ammo Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnHeal = CreateConVar("arang_shop_sells_heal", "1", "Show Healing Item Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnSpecial = CreateConVar("arang_shop_sells_special", "1", "Show Special Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnSpecialTeam = CreateConVar("arang_shop_sells_specialteam", "1", "Show Special (Team) Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnUpgrade = CreateConVar("arang_shop_sells_upgrade", "1", "Show Upgrades Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnZombie = CreateConVar("arang_shop_sells_zombie", "1", "Show Zombies Category on Menu", 262208, false, 0.0, false, 0.0);
+	HCVarShopEnUtilities = CreateConVar("arang_shop_sells_utilities", "1", "Show Utilities Category on Menu", 262208, false, 0.0, false, 0.0);
+	RegConsoleCmd("arang", ShowShoppingMenu, "", 0);
+	RegConsoleCmd("aranging", ShowShoppingMenu, "", 0);
+	RegConsoleCmd("arang_shop_reset", ResetShoppingCommand, "", 0);
+	RegConsoleCmd("arang_shop_buy", ShoppingCommand, "", 0);
+	RegConsoleCmd("arang_shop_status", ShowShoppingStatus, "", 0);
+	RegConsoleCmd("arang_shop_autoexecconfig", AutoExecConfigCommand, "", 0);
+	RegConsoleCmd("arangroll", ShopRTDCommand, "", 0);
+	Init_Events();
+	Init_FreezeClient();
+	Reset_ArangShop();
+	return 0;
+}
+
+public Action:AutoExecConfigCommand(client, args)
+{
+	AutoExecConfig(true, "arang_shop", "arang");
+	return Action:3;
+}
+
+public OnMapStart()
+{
+	PrecacheSound("UI/Menu_Horror01.wav", true);
+	PrecacheSound("physics/glass/glass_impact_bullet4.wav", true);
+	PrecacheSound("ambient/machines/steam_release_2.wav", true);
+	PrecacheSound("UI/helpful_event_1.wav", true);
+	PrecacheSound("UI/beep_synthtone01.wav", true);
+	PrecacheSound("UI/menu_enter05.wav", true);
+	DisplayUsage(0);
+	CreateTimer(360.0, DisplayUsage_Timer, any:0, 3);
+	CreateTimer(1.0, RTD_Timer, any:0, 3);
+	return 0;
+}
+
+public Reset_ArangShop()
+{
+	GameMode = L4DGameMode();
+	Init_RTD();
+	Init_ArangShopValues();
+	Init_Abilities();
+	Init_Upgates();
+	ShopSetCashToPlayers_Initial();
+	return 0;
+}
+
+public Init_ArangShopValues()
+{
+	HunterValue = 400;
+	SmokerValue = 500;
+	BoomerValue = 600;
+	SpitterValue = 400;
+	ChargerValue = 500;
+	JockeyValue = 500;
+	WitchValue = 800;
+	WitchValueExtra = 500;
+	TankValue = 1000;
+	TankValueExtra = 500;
+	ReviveValue = 0;
+	ReviveLastLifeValue = 0;
+	ShopMaxValue = GetConVarInt(HCVarShopMaxValue);
+	InitialValue = GetConVarInt(HCVarShopInitialValue);
+	InitialPriceScale = GetConVarFloat(HCVarShopInitialPriceScale);
+	CostPlayerDeath = GetConVarInt(HCVarShopLoseOnDead);
+	CostPlayerFailed = GetConVarInt(HCVarShopLoseOnFailed);
+	if (GameMode == 3)
+	{
+		InitialValue = GetConVarInt(HCVarShopHoldoutInitialValue);
+	}
+	return 0;
+}
+
+public AbilityPlayers_Update()
+{
+	AbilityPlayers_Update_MaxHealth();
+	return 0;
+}
+
+public L4DGameMode()
+{
+	new HCVarNoHumanZombies = FindConVar("director_no_human_zombies");
+	if (HCVarNoHumanZombies)
+	{
+		new var1;
+		if (GetConVarBool(HCVarNoHumanZombies))
+		{
+			var1 = 1;
+		}
+		else
+		{
+			var1 = 2;
+		}
+		return var1;
+	}
+	new HCVarGameMode = FindConVar("mp_gamemode");
+	if (HCVarGameMode)
+	{
+		decl String:StrMode[16];
+		GetConVarString(HCVarGameMode, StrMode, 16);
+		if (StrContains(StrMode, "versus", false) != -1)
+		{
+			return 2;
+		}
+		if (StrContains(StrMode, "survival", false) != -1)
+		{
+			return 3;
+		}
+		if (StrContains(StrMode, "coop", false) != -1)
+		{
+			return 1;
+		}
+		if (StrContains(StrMode, "realism", false) != -1)
+		{
+			return 1;
+		}
+		if (StrContains(StrMode, "scavence", false) != -1)
+		{
+			return 4;
+		}
+	}
+	return 0;
+}
+
+public Init_RTD()
+{
+	DiceTick = 0;
+	new Index = 1;
+	while (Index <= 64)
+	{
+		DiceTime[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Action:ShopRTDCommand(client, args)
+{
+	ShopSelectItem(client, 9999, "Roll the Dice");
+	return Action:3;
+}
+
+public Action:RTD_Timer(Handle:timer, any:client)
+{
+	DiceTick = DiceTick + 1;
+	return Action:0;
+}
+
+public Init_Abilities()
+{
+	HCVarGod = FindConVar("god");
+	HCVarZSpeed = FindConVar("z_speed");
+	HCVarInifnityAmmo = FindConVar("sv_infinite_ammo");
+	SetConVarFlags(HCVarGod, GetConVarFlags(HCVarGod) & -257);
+	ResetConVar(HCVarGod, false, false);
+	ResetConVar(HCVarInifnityAmmo, false, false);
+	ResetConVar(HCVarZSpeed, false, false);
+	LenSlowMo = 30;
+	LenImmune = 30;
+	LenAmmoInfinity = 45;
+	new Index = 1;
+	while (Index <= 64)
+	{
+		LenHighJump[Index] = 360;
+		LenFireBullet[Index] = 360;
+		LenFreezingBullet[Index] = 360;
+		LenAcidBullet[Index] = 360;
+		LenSpeedShoe[Index] = 360;
+		LenHealthRegen[Index] = 180;
+		LenFlameShield[Index] = 180;
+		LenVampiric[Index] = 180;
+		Index++;
+	}
+	IsActiveSlowMo = false;
+	IsActiveImmune = false;
+	IsActiveAmmoInfinity = false;
+	Init_Healthy();
+	Init_FireBullet();
+	Init_FreezingBullet();
+	Init_AcidBullet();
+	Init_SpeedShoe();
+	Init_HighJump();
+	Init_FlameShield();
+	Init_Vampiric();
+	return 0;
+}
+
+public bool:AbilityEnemySlowMo_Begin(client)
+{
+	if (!IsActiveSlowMo)
+	{
+		CreateTimer(float(LenSlowMo), AbilityEnemySlowMo_Termi, client, 0);
+		DefZSpeed = GetConVarInt(HCVarZSpeed);
+		SetConVarInt(HCVarZSpeed, 50, false, false);
+		IsActiveSlowMo = true;
+		Display(0, 3, "\x01\x03%N\x01  used SlowMo Infected (%i seconds)", client, LenSlowMo);
+		return true;
+	}
+	Display(client, 3, "Can not use SlowMo Infected while it was activated.");
+	return false;
+}
+
+public Action:AbilityEnemySlowMo_Termi(Handle:timer, any:client)
+{
+	if (IsActiveSlowMo)
+	{
+		SetConVarInt(HCVarZSpeed, DefZSpeed, false, false);
+		IsActiveSlowMo = false;
+		Display(0, 3, "SlowMo Infected Deactivated.");
+	}
+	return Action:0;
+}
+
+public bool:AbilityImmuneDamage_Begin(client)
+{
+	if (!IsActiveImmune)
+	{
+		CreateTimer(float(LenImmune), AbilityImmuneDamage_Termi, client, 0);
+		SetConVarInt(HCVarGod, 1, false, false);
+		IsActiveImmune = true;
+		Display(0, 3, "\x01\x03%N\x01 used Immune Damages. (%i seconds)", client, LenImmune);
+		return true;
+	}
+	Display(client, 3, "Can not use Immune Damages while it was activated.");
+	return false;
+}
+
+public Action:AbilityImmuneDamage_Termi(Handle:timer, any:client)
+{
+	if (IsActiveImmune)
+	{
+		SetConVarInt(HCVarGod, 0, false, false);
+		IsActiveImmune = false;
+		Display(0, 3, "Immune Damages Deactivated.");
+	}
+	return Action:0;
+}
+
+public AbilityMinigun_IsAvailable()
+{
+	return IsExecCommand("arang_shop_buy_minigun");
+}
+
+public AbilityMinigun_Spawn(client, timeout)
+{
+	ClientCommand(client, "arang_shop_buy_minigun 1007");
+	return 0;
+}
+
+public bool:AbilityAmmoInfinity_Begin(client)
+{
+	if (!IsActiveAmmoInfinity)
+	{
+		CreateTimer(float(LenAmmoInfinity), AbilityAmmoInfinity_Termi, client, 0);
+		AbilitySetPlayerAmmoInfinity(true);
+		Display(0, 3, "\x01\x03%N\x01 used Ammo Infinity (%i seconds)", client, LenAmmoInfinity);
+		return true;
+	}
+	Display(client, 3, "Can not use Ammo Infinity while it was activated.");
+	return false;
+}
+
+public Action:AbilityAmmoInfinity_Termi(Handle:timer, any:client)
+{
+	if (IsActiveAmmoInfinity)
+	{
+		AbilitySetPlayerAmmoInfinity(false);
+		Display(0, 3, "Ammo Infinity Deactivated.");
+	}
+	return Action:0;
+}
+
+public AbilitySetPlayerAmmoInfinity(bool:En)
+{
+	new var1;
+	if (En)
+	{
+		var1 = 1;
+	}
+	else
+	{
+		var1 = 0;
+	}
+	SetConVarInt(HCVarInifnityAmmo, var1, false, false);
+	IsActiveAmmoInfinity = En;
+	return 0;
+}
+
+public Init_FireBullet()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		IsActiveFireBullet[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Action:AbilityFireBullet_Begin(client)
+{
+	if (AbilitySetPlayerFireBullet(client, 1))
+	{
+		CreateTimer(float(LenFireBullet[client]), AbilityFireBullet_Termi, client, 0);
+		Display(0, 3, "\x01\x03%N\x01 used Fire Bullets (%i seconds)", client, LenFireBullet[client]);
+		return Action:1;
+	}
+	Display(client, 3, "Can not use Fire Bullet while it was activated.");
+	return Action:0;
+}
+
+public Action:AbilityFireBullet_Termi(Handle:timer, any:client)
+{
+	AbilitySetPlayerFireBullet(client, 0);
+	Display(0, 3, "\x01\x03%N\x01 Fire Bullet Deactivated.", client);
+	return Action:0;
+}
+
+public bool:AbilitySetPlayerFireBullet(client, En)
+{
+	if (En)
+	{
+		if (IsActiveFireBullet[client])
+		{
+			return false;
+		}
+		IsActiveFireBullet[client] = 1;
+		return true;
+	}
+	IsActiveFireBullet[client] = 0;
+	return false;
+}
+
+public Init_AcidBullet()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		IsActiveAcidBullet[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Action:AbilityAcidBullet_Begin(client)
+{
+	if (AbilitySetPlayerAcidBullet(client, 1))
+	{
+		CreateTimer(float(LenAcidBullet[client]), AbilityAcidBullet_Termi, client, 0);
+		Display(0, 3, "\x01\x03%N\x01 used Acid Bullets (%i seconds)", client, LenAcidBullet[client]);
+		return Action:1;
+	}
+	Display(client, 3, "Can not use Acid Bullet while it was activated.");
+	return Action:0;
+}
+
+public Action:AbilityAcidBullet_Termi(Handle:timer, any:client)
+{
+	AbilitySetPlayerAcidBullet(client, 0);
+	Display(0, 3, "\x01\x03%N\x01 Acid Bullet Deactivated.", client);
+	return Action:4;
+}
+
+public bool:AbilitySetPlayerAcidBullet(client, En)
+{
+	if (En)
+	{
+		if (IsActiveAcidBullet[client])
+		{
+			return false;
+		}
+		IsActiveAcidBullet[client] = 1;
+		return true;
+	}
+	IsActiveAcidBullet[client] = 0;
+	return false;
+}
+
+public Action:AcidInfected_Timer(client, Ent, Time)
+{
+	new var1;
+	if (HPlayerHealthOffs && IsValidEntity(Ent))
+	{
+		new CurHealth = GetEntData(Ent, HPlayerHealthOffs, 4);
+		CurHealth -= CurHealth / 4;
+		SetEntData(Ent, HPlayerHealthOffs, CurHealth, 4, false);
+		SetEntityRenderColor(Ent, 64, 64, 64, 255);
+		EmitSoundToAll("ambient/machines/steam_release_2.wav", 1, 130, 0, 1056964608, 1.0, 100, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+	}
+	return Action:4;
+}
+
+public Action:AcidClient_Timer(Handle:timer, any:Ent)
+{
+	new var1;
+	if (HPlayerHealthOffs && IsValidEntity(Ent))
+	{
+		new CurHealth = GetEntData(Ent, HPlayerHealthOffs, 4);
+		CurHealth += -10;
+		if (0 > CurHealth)
+		{
+			CurHealth = 1;
+		}
+		SetEntData(Ent, HPlayerHealthOffs, CurHealth, 4, false);
+		SetEntityRenderColor(Ent, 64, 64, 64, 255);
+		EmitSoundToAll("ambient/machines/steam_release_2.wav", 1, 130, 0, 1056964608, 1.0, 100, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+		if (CurHealth > 1)
+		{
+			return Action:0;
+		}
+	}
+	return Action:4;
+}
+
+public AcidInfected(client, Ent, Time)
+{
+	CreateParticle(Ent, "steam_manhole", 1.5);
+	AcidInfected_Timer(client, Ent, Time);
+	return 0;
+}
+
+public AcidClient(client, Time)
+{
+	CreateParticle(client, "steam_manhole", 1.5);
+	CreateTimer(3.0, AcidClient_Timer, client, 3);
+	return 0;
+}
+
+public Init_FreezingBullet()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		IsActiveFreezingBullet[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public AbilityFreezingBullet_Begin(client)
+{
+	if (AbilitySetPlayerFreezingBullet(client, 1))
+	{
+		CreateTimer(float(LenFreezingBullet[client]), AbilityFreezingBullet_Termi, client, 0);
+		Display(0, 3, "\x01\x03%N\x01  used Freezing Bullets (%i seconds)", client, LenFreezingBullet[client]);
+		return 1;
+	}
+	Display(client, 3, "Can not use Freezing Bullets while it was activated.");
+	return 0;
+}
+
+public Action:AbilityFreezingBullet_Termi(Handle:timer, any:client)
+{
+	AbilitySetPlayerFreezingBullet(client, 0);
+	Display(0, 3, "Freezing Bullet Deactivated.");
+	return Action:0;
+}
+
+public bool:AbilitySetPlayerFreezingBullet(client, En)
+{
+	if (En)
+	{
+		if (IsActiveFreezingBullet[client])
+		{
+			return false;
+		}
+		IsActiveFreezingBullet[client] = 1;
+		return true;
+	}
+	IsActiveFreezingBullet[client] = 0;
+	return false;
+}
+
+public Init_FreezeClient()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersFrozen[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public FreezeInfected(client, Ent, time)
+{
+	if (IsValidEntity(Ent))
+	{
+		if (HPlayerHealthOffs)
+		{
+			new CurHealth = GetEntData(Ent, HPlayerHealthOffs, 4);
+			CurHealth -= CurHealth / 6;
+			SetEntData(Ent, HPlayerHealthOffs, CurHealth, 4, false);
+		}
+		SetEntityMoveType(Ent, MoveType:0);
+		SetEntityRenderColor(Ent, 192, 192, 255, 246);
+		new Float:vec[3] = 0.0;
+		GetClientAbsOrigin(client, vec);
+		EmitAmbientSound("physics/glass/glass_impact_bullet4.wav", vec, client, 130, 0, 1.0, 100, 0.0);
+	}
+	return 0;
+}
+
+public Action:Timer_UnfreezeInfected(Handle:timer, any:value)
+{
+	new client = value;
+	SetEntityMoveType(client, MoveType:2);
+	SetEntityRenderColor(client, 255, 255, 255, 255);
+	return Action:4;
+}
+
+public FreezeClient(client, time)
+{
+	if (!PlayersFrozen[client])
+	{
+		SetEntityMoveType(client, MoveType:0);
+		SetEntityRenderColor(client, 192, 192, 255, 246);
+		new Float:vec[3] = 0.0;
+		GetClientEyePosition(client, vec);
+		EmitAmbientSound("physics/glass/glass_impact_bullet4.wav", vec, client, 130, 0, 1.0, 100, 0.0);
+		PlayersFrozen[client] = 1;
+		CreateTimer(float(time), Timer_UnfreezeClient, client, 0);
+	}
+	return 0;
+}
+
+public UnfreezeClient(client)
+{
+	new Float:vec[3] = 0.0;
+	GetClientAbsOrigin(client, vec);
+	vec[2] += 10;
+	GetClientEyePosition(client, vec);
+	EmitAmbientSound("physics/glass/glass_impact_bullet4.wav", vec, client, 130, 0, 1.0, 100, 0.0);
+	SetEntityMoveType(client, MoveType:2);
+	SetEntityRenderColor(client, 255, 255, 255, 255);
+	PlayersFrozen[client] = 0;
+	return 0;
+}
+
+public Action:Timer_UnfreezeClient(Handle:timer, any:value)
+{
+	new client = value;
+	if (IsClientInGame(client))
+	{
+		UnfreezeClient(client);
+	}
+	return Action:4;
+}
+
+public Init_Healthy()
+{
+	HCVarFirstAidMaxHeal = FindConVar("first_aid_kit_max_heal");
+	HCVarFirstAidHealPercent = FindConVar("first_aid_heal_percent");
+	HPlayerIsIncapOffs = FindSendPropInfo("CTerrorPlayer", "m_isIncapacitated", 0, 0, 0);
+	HPlayerHealthOffs = FindSendPropInfo("CTerrorPlayer", "m_iHealth", 0, 0, 0);
+	HPlayerMaxHealthOffs = FindSendPropInfo("CTerrorPlayer", "m_iMaxHealth", 0, 0, 0);
+	SetConVarInt(HCVarFirstAidMaxHeal, 1000, false, false);
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersMaxHealth[Index] = 100;
+		PlayersHealthRegen[Index] = 0;
+		PlayersHalfPriceHealing[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public AbilityInstantHealth(client, Value)
+{
+	new CurHealth = AbilityGetPlayerHealth(client);
+	if (CurHealth < Value)
+	{
+		ExecClientCommand(client, "give health");
+		AbilitySetPlayerHealth(client, Value);
+		if (Value <= 100)
+		{
+			Display(0, 3, "\x01\x03%N\x01 instantly heal!", client);
+		}
+		else
+		{
+			Display(0, 3, "\x01\x03%N\x01 instantly heal and extended life to %i hp.", client, Value);
+		}
+		return 1;
+	}
+	return 0;
+}
+
+public AbilitySetHalfPriceHealing(client, En)
+{
+	PlayersHalfPriceHealing[client] = En;
+	return 0;
+}
+
+public Action:AbilityHealthRegen_Begin(client, IsForced)
+{
+	if (AbilitySetPlayerHealthRegen(client, 1, IsForced))
+	{
+		CreateTimer(3.0, AbilityHealthRegen_Termi, client, 1);
+		Display(0, 3, "\x01\x03%N\x01 used Health Regeneration (%i seconds)", client, LenHealthRegen[client]);
+		return Action:1;
+	}
+	Display(client, 3, "Can not use Health Regeneration while it was activated.");
+	return Action:0;
+}
+
+public Action:AbilityHealthRegen_Termi(Handle:timer, any:client)
+{
+	if (LenHealthRegen[client] >= PlayersHealthRegen[client])
+	{
+		if (!IsValidEntity(client))
+		{
+			return Action:0;
+		}
+		if (!IsClientInGame(client))
+		{
+			return Action:0;
+		}
+		new MaxHealth = AbilityGetPlayerMaxHealth(client);
+		new RegenVal = RoundToNearest(1008981770 * MaxHealth);
+		if (IsPlayerHealthy(client))
+		{
+			if (AbilitySetPlayerHealthAddon(client, RegenVal))
+			{
+				new Float:CurPos[3] = 0.0;
+				GetClientAbsOrigin(client, CurPos);
+				EmitAmbientSound("UI/helpful_event_1.wav", CurPos, client, 130, 0, 1.0, 100, 0.0);
+			}
+		}
+		PlayersHealthRegen[client] += 1;
+		return Action:0;
+	}
+	PlayersHealthRegen[client] = 0;
+	Display(0, 3, "\x01\x03%N\x01 Health Regeneration Deactivate.", client);
+	return Action:4;
+}
+
+public bool:AbilitySetPlayerHealthRegen(client, En, IsForced)
+{
+	if (En)
+	{
+		if (!IsForced)
+		{
+			if (0 < PlayersHealthRegen[client])
+			{
+				return false;
+			}
+		}
+		PlayersHealthRegen[client] = 1;
+		return true;
+	}
+	PlayersHealthRegen[client] = 0;
+	return false;
+}
+
+public Init_FlameShield()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		IsActiveFlameShield[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Action:AbilityFlameShield_Begin(client)
+{
+	if (AbilitySetPlayerFlameShield(client, 1))
+	{
+		CreateTimer(float(LenFlameShield[client]), AbilityFlameShield_Termi, client, 0);
+		Display(0, 3, "\x01\x03%N\x01 used Flame Shield (%i seconds)", client, LenFlameShield[client]);
+		return Action:1;
+	}
+	Display(client, 3, "Can not use Flame Shield while it was activated.");
+	return Action:0;
+}
+
+public Action:AbilityFlameShield_Termi(Handle:timer, any:client)
+{
+	AbilitySetPlayerFlameShield(client, 0);
+	Display(0, 3, "\x01\x03%N\x01 Flame Shield Deactivated.", client);
+	return Action:4;
+}
+
+public bool:AbilitySetPlayerFlameShield(client, En)
+{
+	if (En)
+	{
+		if (IsActiveFlameShield[client])
+		{
+			return false;
+		}
+		IsActiveFlameShield[client] = 1;
+		return true;
+	}
+	IsActiveFlameShield[client] = 0;
+	return false;
+}
+
+public Init_Vampiric()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		IsActiveVampiric[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Action:AbilityVampiric_Begin(client)
+{
+	if (AbilitySetPlayerVampiric(client, 1))
+	{
+		CreateTimer(float(LenVampiric[client]), AbilityFlameShield_Termi, client, 0);
+		Display(0, 3, "\x01\x03%N\x01 used Vampiric Vaccine (%i seconds)", client, LenVampiric[client]);
+		return Action:1;
+	}
+	Display(client, 3, "Can not use Vampiric Vaccine while it was activated.");
+	return Action:0;
+}
+
+public Action:AbilityVampiric_Termi(Handle:timer, any:client)
+{
+	AbilitySetPlayerVampiric(client, 0);
+	Display(0, 3, "\x01\x03%N\x01 Vampiric Vaccine Deactivated.", client);
+	return Action:4;
+}
+
+public bool:AbilitySetPlayerVampiric(client, En)
+{
+	if (En)
+	{
+		if (IsActiveVampiric[client])
+		{
+			return false;
+		}
+		IsActiveVampiric[client] = 1;
+		return true;
+	}
+	IsActiveVampiric[client] = 0;
+	return false;
+}
+
+public AbilityVampiric(client, dmg)
+{
+	if (IsPlayerHealthy(client))
+	{
+		new CurHealth = AbilityGetPlayerHealth(client);
+		if (CurHealth < 15)
+		{
+			if (dmg < CurHealth)
+			{
+				AbilitySetPlayerHealthAddon(client, dmg * 2);
+			}
+			else
+			{
+				AbilitySetPlayerHealthAddon(client, dmg / 2);
+			}
+		}
+		else
+		{
+			AbilitySetPlayerHealthAddon(client, dmg / 2);
+		}
+	}
+	return 0;
+}
+
+public IsPlayerHealthy(client)
+{
+	if (!IsValidEntity(client))
+	{
+		return 0;
+	}
+	if (IsClientInGame(client))
+	{
+		if (GetEntData(client, HPlayerIsIncapOffs, 4))
+		{
+			return 0;
+		}
+		return 1;
+	}
+	return 0;
+}
+
+public AbilitySetPlayerIncap(client, En)
+{
+	if (!IsValidEntity(client))
+	{
+		return 0;
+	}
+	if (IsClientInGame(client))
+	{
+		if (En)
+		{
+			SetEntData(client, HPlayerIsIncapOffs, any:1, 4, false);
+		}
+		SetEntData(client, HPlayerIsIncapOffs, any:0, 4, false);
+	}
+	return 0;
+}
+
+public AbilitySetPlayerImmune(client, En)
+{
+	if (!IsValidEntity(client))
+	{
+		return 0;
+	}
+	if (IsClientInGame(client))
+	{
+		if (En)
+		{
+			SetEntProp(client, PropType:1, "m_takedamage", any:0, 1);
+		}
+		SetEntProp(client, PropType:1, "m_takedamage", any:2, 1);
+	}
+	return 0;
+}
+
+public AbilityPlayerImmune(client, Float:Time)
+{
+	Display(0, 3, "\x01\x03%N\x01  is Immune Damages (%.0f seconds).", client, Time);
+	AbilitySetPlayerImmune(client, 1);
+	CreateTimer(Time, AbilityPlayerImmune_Termi, client, 0);
+	return 0;
+}
+
+public Action:AbilityPlayerImmune_Termi(Handle:timer, any:client)
+{
+	Display(0, 3, "\x01\x03%N\x01  is Vulnerable damages.", client);
+	AbilitySetPlayerImmune(client, 0);
+	return Action:4;
+}
+
+public AbilityExtendedAmmo(client)
+{
+	SetEntData(client, FindSendPropInfo("CBasePlayer", "m_iAmmo", 0, 0, 0), any:0, 4, false);
+	return 0;
+}
+
+public AbilityGetPlayerHealth(client)
+{
+	if (GetEntData(client, HPlayerIsIncapOffs, 4))
+	{
+		return 1;
+	}
+	return GetEntData(client, HPlayerHealthOffs, 4);
+}
+
+public AbilityGetPlayerMaxHealth(client)
+{
+	return GetEntData(client, HPlayerMaxHealthOffs, 4);
+}
+
+public AbilitySetPlayerHealth(client, Health)
+{
+	if (!IsClientInGame(client))
+	{
+		return 0;
+	}
+	SetEntData(client, HPlayerHealthOffs, Health, 4, false);
+	return 0;
+}
+
+public AbilitySetPlayerHealthAddon(client, Health)
+{
+	new CurMaxHealth = AbilityGetPlayerMaxHealth(client);
+	new CurHealth = AbilityGetPlayerHealth(client);
+	if (CurHealth < CurMaxHealth)
+	{
+		if (Health + CurHealth > CurMaxHealth)
+		{
+			CurHealth = CurMaxHealth;
+		}
+		else
+		{
+			CurHealth = Health + CurHealth;
+		}
+		if (0 >= CurHealth)
+		{
+			CurHealth = 1;
+		}
+		if (CurHealth <= CurMaxHealth)
+		{
+			return AbilitySetPlayerHealth(client, CurHealth);
+		}
+		return 0;
+	}
+	return CurHealth > 1;
+}
+
+public AbilitySetPlayerMaxHealth(client, Health)
+{
+	if (!IsValidEntity(client))
+	{
+		return 0;
+	}
+	if (!IsClientInGame(client))
+	{
+		return 0;
+	}
+	SetEntData(client, HPlayerMaxHealthOffs, Health, 4, false);
+	return 0;
+}
+
+public AbilitySetPlayerFirstAidHeal(client, PrevHealRestored)
+{
+	AbilitySetPlayerMaxHealth(client, PlayersMaxHealth[client]);
+	new CurMaxHealth = AbilityGetPlayerMaxHealth(client);
+	new CurHealth = PrevHealRestored;
+	new Val = RoundToNearest(float(CurMaxHealth) * GetConVarFloat(HCVarFirstAidHealPercent));
+	if (Val > CurHealth)
+	{
+		AbilitySetPlayerHealth(client, Val);
+		return 1;
+	}
+	if (CurHealth >= CurMaxHealth)
+	{
+		Val = RoundToNearest(float(CurMaxHealth) * 0.1) + CurHealth;
+		AbilitySetPlayerHealth(client, Val);
+		return 1;
+	}
+	return 0;
+}
+
+public bool:AbilitySetPlayerMaxHealthAddon(client, Health)
+{
+	new var1 = PlayersMaxHealth[client];
+	var1 = var1[Health];
+	Display(0, 3, "\x01\x03%N\x01 upgrades Maximum Health to %i .", client, PlayersMaxHealth[client]);
+	AbilityPlayers_Update_MaxHealth();
+	return true;
+}
+
+public AbilityPlayers_Update_MaxHealth()
+{
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			new String:PlayerClass[256];
+			GetClientModel(Index, PlayerClass, 255);
+			if (StrContains(PlayerClass, "survivor", false) != -1)
+			{
+				AbilitySetPlayerMaxHealth(Index, PlayersMaxHealth[Index]);
+			}
+		}
+		Index++;
+	}
+	return 0;
+}
+
+public Init_SpeedShoe()
+{
+	HSpeedShoeOffs = FindSendPropOffs("CTerrorPlayer", "m_flLaggedMovementValue");
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersSpeedShoe[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public bool:AbilitySpeedShoe_Begin(client, IsForced)
+{
+	if (PlayersSpeedShoe[client])
+	{
+		if (!IsForced)
+		{
+			Display(client, 3, "You can not use Speed Shoe while it was activated.");
+			return false;
+		}
+	}
+	else
+	{
+		CreateTimer(1.0, AbilitySpeedShoe_Termi, client, 1);
+	}
+	PlayersSpeedShoe[client] += 1;
+	Display(0, 3, "\x01\x03%N\x01 used Speed Shoe %i seconds)", client, LenSpeedShoe[client]);
+	return true;
+}
+
+public Action:AbilitySpeedShoe_Termi(Handle:timer, any:client)
+{
+	if (LenSpeedShoe[client] >= PlayersSpeedShoe[client])
+	{
+		AbilitySetPlayerSpeed(client, 1.5);
+		PlayersSpeedShoe[client] += 1;
+		return Action:0;
+	}
+	AbilitySetPlayerSpeed(client, 1.0);
+	PlayersSpeedShoe[client] = 0;
+	Display(client, 3, "%N Speed Shoe Deactivate.", client);
+	return Action:4;
+}
+
+public AbilitySetPlayerSpeed(client, Float:Speed)
+{
+	if (HSpeedShoeOffs)
+	{
+		if (IsValidEntity(client))
+		{
+			if (IsClientInGame(client))
+			{
+				SetEntDataFloat(client, HSpeedShoeOffs, Speed, false);
+			}
+		}
+	}
+	return 0;
+}
+
+public Init_HighJump()
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersHighJump[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public bool:AbilityHighJumpShoe_Begin(client, IsForced)
+{
+	if (PlayersHighJump[client])
+	{
+		if (!IsForced)
+		{
+			Display(client, 3, "Can not use High Jump while it was activated.");
+			return false;
+		}
+	}
+	else
+	{
+		CreateTimer(1.0, AbilityHighJumpShoe_Termi, client, 1);
+	}
+	PlayersHighJump[client] = 1;
+	Display(0, 3, "\x01\x03%N\x01 used High Jump Shoe %i seconds)", client, LenHighJump[client]);
+	return true;
+}
+
+public Action:AbilityHighJumpShoe_Termi(Handle:timer, any:client)
+{
+	if (LenHighJump[client] >= PlayersHighJump[client])
+	{
+		AbilityHighJumpShoe(client, 0.4);
+		PlayersHighJump[client] += 1;
+		return Action:0;
+	}
+	AbilityHighJumpShoe(client, 1.0);
+	PlayersHighJump[client] = 0;
+	Display(0, 3, "%N High Jump Shoe Deactivate.", client);
+	return Action:4;
+}
+
+public AbilityHighJumpShoe(client, Float:Value)
+{
+	if (IsClientInGame(client))
+	{
+		SetEntityGravity(client, Value);
+	}
+	return 0;
+}
+
+public Init_Upgates()
+{
+	HCVarFirstAidHealPercent = FindConVar("first_aid_heal_percent");
+	HCVarFirstAidUseDuration = FindConVar("first_aid_kit_use_duration");
+	HCVarSurvivorReviveDuration = FindConVar("survivor_revive_duration");
+	HCVarSurvivorReviveHealth = FindConVar("survivor_revive_health");
+	HCVarAmmoMax[0] = FindConVar("ammo_smg_max");
+	HCVarAmmoMax[1] = FindConVar("ammo_huntingrifle_max");
+	HCVarAmmoMax[2] = FindConVar("ammo_assaultrifle_max");
+	HCVarAmmoMax[3] = FindConVar("ammo_buckshot_max");
+	HCVarAmmoMax[4] = FindConVar("ammo_minigun_max");
+	HCVarAmmoMax[5] = FindConVar("ammo_sniperrifle_max");
+	HCVarAmmoMax[6] = FindConVar("ammo_autoshotgun_max");
+	HCVarAmmoMax[7] = FindConVar("ammo_shotgun_max");
+	new Index;
+	while (Index < 9)
+	{
+		if (HCVarAmmoMax[Index])
+		{
+			DefAmmoMax[Index] = GetConVarInt(HCVarAmmoMax[Index]);
+		}
+		Index++;
+	}
+	Upgrade_Reset();
+	return 0;
+}
+
+public Upgrade_Reset()
+{
+	new Index;
+	while (Index < 9)
+	{
+		if (HCVarAmmoMax[Index])
+		{
+			SetConVarInt(HCVarAmmoMax[Index], DefAmmoMax[Index], false, false);
+		}
+		Index++;
+	}
+	ResetConVar(HCVarFirstAidUseDuration, false, false);
+	ResetConVar(HCVarFirstAidHealPercent, false, false);
+	ResetConVar(HCVarSurvivorReviveDuration, false, false);
+	ResetConVar(HCVarSurvivorReviveHealth, false, false);
+	UpCount_Ammo1 = 0;
+	UpCount_Ammo2 = 0;
+	UpCount_FirstAidUseDuration = 0;
+	UpCount_SurvivorReviveEffect = 0;
+	UpCountMax_FirstAidUseDuration = 5;
+	UpCountMax_SurvivorReviveEffect = 5;
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersHealthUpgrades[Index] = 0;
+		Index++;
+	}
+	return 0;
+}
+
+public Upgrade_ConVarInt(Handle:HCVar, Val)
+{
+	if (HCVar)
+	{
+		SetConVarInt(HCVar, GetConVarInt(HCVar) + Val, false, false);
+	}
+	return 0;
+}
+
+public Upgrade_ConVarFloat(Handle:HCVar, Float:Val)
+{
+	if (HCVar)
+	{
+		new Float:CurVal = GetConVarFloat(HCVar) + Val;
+		SetConVarFloat(HCVar, CurVal, false, false);
+	}
+	return 0;
+}
+
+public Upgrade_ConVarInt_Percent(Handle:HCVar, Percent)
+{
+	if (HCVar)
+	{
+		new CurVal = GetConVarInt(HCVar);
+		CurVal = Percent * CurVal / 100 + CurVal;
+		SetConVarInt(HCVar, CurVal, false, false);
+	}
+	return 0;
+}
+
+public bool:Upgrade_AdditionalAmmo(client, AmmoType, Percent)
+{
+	if (AmmoType == 1)
+	{
+		UpCount_Ammo1 = UpCount_Ammo1 + 1;
+		Upgrade_ConVarInt_Percent(HCVarAmmoMax[0], Percent);
+		Upgrade_ConVarInt_Percent(HCVarAmmoMax[1], Percent);
+		Upgrade_ConVarInt_Percent(HCVarAmmoMax[5], Percent);
+		Display(0, 0, "\x01\x03%N \x01 upgrades Guns ammo by %d %%.", client, Percent);
+		return true;
+	}
+	UpCount_Ammo2 = UpCount_Ammo2 + 1;
+	Upgrade_ConVarInt_Percent(HCVarAmmoMax[2], Percent);
+	Upgrade_ConVarInt_Percent(HCVarAmmoMax[3], Percent);
+	Upgrade_ConVarInt_Percent(HCVarAmmoMax[4], Percent);
+	Upgrade_ConVarInt_Percent(HCVarAmmoMax[6], Percent);
+	Upgrade_ConVarInt_Percent(HCVarAmmoMax[7], Percent);
+	Display(0, 0, "\x01\x03%N \x01 upgrades Shotgun ammo by %d %%.", client, Percent);
+	return true;
+}
+
+public bool:Upgrade_FirstAidUseDuration(client)
+{
+	if (UpCount_FirstAidUseDuration < UpCountMax_FirstAidUseDuration)
+	{
+		Upgrade_ConVarInt(HCVarFirstAidUseDuration, -1);
+		Upgrade_ConVarFloat(HCVarFirstAidHealPercent, 0.05);
+		UpCount_FirstAidUseDuration = UpCount_FirstAidUseDuration + 1;
+		Display(0, 0, "\x01\x03%N \x01 upgraded First Aid Effective (Level %i / %i).", client, UpCount_FirstAidUseDuration, UpCountMax_FirstAidUseDuration);
+		return true;
+	}
+	Display(client, 3, "Unable to upgrades First Aid Effective anymore.", client);
+	return false;
+}
+
+public bool:Upgrade_SurvivorReviveEffect(client)
+{
+	if (UpCount_SurvivorReviveEffect < UpCountMax_SurvivorReviveEffect)
+	{
+		if (0 < GetConVarInt(HCVarSurvivorReviveDuration))
+		{
+			Upgrade_ConVarInt(HCVarSurvivorReviveDuration, -1);
+		}
+		Upgrade_ConVarInt(HCVarSurvivorReviveHealth, 15);
+		UpCount_SurvivorReviveEffect = UpCount_SurvivorReviveEffect + 1;
+		Display(0, 0, "\x01\x03%N \x01 updated Incapacitated effective (Level %i / %i).", client, UpCount_SurvivorReviveEffect, UpCountMax_SurvivorReviveEffect);
+		return true;
+	}
+	Display(client, 3, "Unable to upgrades Incapacitated revive speed anymore.", client);
+	return false;
+}
+
+public SetHookEvent(String:name[], EventHook:callback)
+{
+	if (HookEventEx(name, callback, EventHookMode:1))
+	{
+		PrintToServer("Captured Event %s .", name);
+	}
+	else
+	{
+		PrintToServer("Unable to Captured Event %s .", name);
+	}
+	return 0;
+}
+
+public Init_Events()
+{
+	SetHookEvent("infected_death", Event_InfectedDeath);
+	SetHookEvent("infected_hurt", Event_InfectedHurt);
+	SetHookEvent("player_hurt", Event_PlayerHurt);
+	SetHookEvent("player_death", Event_PlayerDeath);
+	SetHookEvent("tank_killed", Event_TankKilled);
+	SetHookEvent("witch_killed", Event_WitchKilled);
+	SetHookEvent("mission_lost", Event_MissionLost);
+	SetHookEvent("bot_player_replace", Event_PlayerToBotReplace);
+	SetHookEvent("bullet_impact", Event_BulletImpact);
+	SetHookEvent("round_start", Event_GameStart);
+	SetHookEvent("player_transitioned", Event_GameStart);
+	SetHookEvent("revive_success", Event_PlayerRevive);
+	SetHookEvent("player_incapacitated", Event_PlayerIncap);
+	SetHookEvent("heal_begin", Event_PlayerHealBegin);
+	SetHookEvent("heal_end", Event_PlayerHealEnd);
+	SetHookEvent("heal_success", Event_PlayerHealSuccess);
+	SetHookEvent("finale_win", Event_FinaleWin);
+	return 0;
+}
+
+public ShopForceBind(client)
+{
+	if (HCVarForceBind)
+	{
+		if (GetConVarBool(HCVarForceBind))
+		{
+			ClientCommand(client, "bind b \"arang; say_team !arang\"");
+			ClientCommand(client, "bind v \"say_team !arangroll\"");
+			ClientCommand(client, "bind 0 slot0");
+			ClientCommand(client, "bind 1 slot1");
+			ClientCommand(client, "bind 2 slot2");
+			ClientCommand(client, "bind 3 slot3");
+			ClientCommand(client, "bind 4 slot4");
+			ClientCommand(client, "bind 5 slot5");
+			ClientCommand(client, "bind 6 slot6");
+			ClientCommand(client, "bind 7 slot7");
+		}
+	}
+	return 0;
+}
+
+public OnClientPutInServer(client)
+{
+	ShopForceBind(client);
+	return 0;
+}
+
+public Action:Event_PlayerToBotReplace(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "player"));
+	DisplayUsage(client);
+	ShopForceBind(client);
+	return Action:0;
+}
+
+public Action:DisplayUsage_Timer(Handle:timer, any:client)
+{
+	if (HCVarShopUsageEn)
+	{
+		if (GetConVarBool(HCVarShopUsageEn))
+		{
+			DisplayUsage(0);
+		}
+	}
+	return Action:0;
+}
+
+public DisplayUsage(client)
+{
+	Display(client, 3, "\x01\x05Frozenology's ARANG Shop (%s) Service", "2.4");
+	Display(client, 3, "\x01Type \x04!arang\x01 in chat window or you can bind keys to \x04arang");
+	Display(client, 3, "\x01Binding Key Command: \x04bind b arang\x01 | To use: \x04Press B");
+	Display(client, 3, "\x01For Roll the dice shortcut command is \x04bind v arangroll\x01 | To use: \x04Press V");
+	return 0;
+}
+
+public Action:Event_GameStart(Handle:event, String:name[], bool:dontBroadcast)
+{
+	GameMode = L4DGameMode();
+	new var1;
+	if (GetConVarBool(HCVarShopHoldoutStReset) && GameMode == 3)
+	{
+		Reset_ArangShop();
+	}
+	AbilityPlayers_Update();
+	if (GetConVarBool(HCVarShopVersusStReset))
+	{
+		new var2;
+		if (GameMode == 2 || GameMode == 4)
+		{
+			Display(0, 10, "versus aranging power gain");
+			Reset_ArangShop();
+			new Float:Inteval = GetConVarFloat(HCVarShopInfectedGainInteval);
+			if (Inteval > 0.0)
+			{
+				CreateTimer(Inteval, GainPower_Timer, any:0, 3);
+			}
+		}
+	}
+	return Action:0;
+}
+
+public Action:GainPower_Timer(Handle:timer, any:client)
+{
+	if (HCVarShopInfectedGainValue)
+	{
+		new Val = GetConVarInt(HCVarShopInfectedGainInteval);
+		ShopAddCashToTeamPlayers(Val, 3);
+	}
+	return Action:0;
+}
+
+public Action:Event_DisplayUsage(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	DisplayUsage(client);
+	return Action:0;
+}
+
+public Action:Event_BulletImpact(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_MissionLost(Handle:event, String:name[], bool:dontBroadcast)
+{
+	if (0 < CostPlayerFailed)
+	{
+		ShopRemoveCashFromPlayers(CostPlayerFailed);
+		Display(0, 0, "Everyone Failed, Aranging Power decreased by %i", CostPlayerFailed);
+	}
+	return Action:0;
+}
+
+public Action:Event_WitchKilled(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (0 < attacker)
+	{
+		if (GetEventBool(event, "oneshot"))
+		{
+			ShopAddCashToPlayer(attacker, WitchValueExtra + WitchValue);
+			Display(0, 3, "%N killed Witch - One Shot", attacker);
+		}
+		ShopAddCashToPlayer(attacker, WitchValue);
+		Display(0, 3, "%N killed Witch", attacker);
+	}
+	return Action:0;
+}
+
+public Action:Event_TankKilled(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_PlayerRevive(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new IsHanging = GetEventBool(event, "ledge_hang");
+	new IsLastLife = GetEventBool(event, "lastlife");
+	if (!IsHanging)
+	{
+		if (IsLastLife)
+		{
+			ShopAddCashToPlayer(client, ReviveValue);
+		}
+		ShopAddCashToPlayer(client, ReviveLastLifeValue);
+	}
+	return Action:0;
+}
+
+public Action:Event_InfectedHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new victim = GetEventInt(event, "entityid");
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if (IsActiveFireBullet[attacker])
+	{
+		IgniteEntity(victim, 10.0, false, 0.0, false);
+	}
+	if (IsActiveFreezingBullet[attacker])
+	{
+		FreezeInfected(attacker, victim, 5);
+	}
+	if (IsActiveAcidBullet[attacker])
+	{
+		AcidInfected(attacker, victim, 3);
+	}
+	new var1;
+	if (attacker && IsClientInGame(attacker))
+	{
+		new AttackerTeam = GetClientTeam(attacker);
+		new String:AtkWeap[256];
+		new DmgDone = GetEventInt(event, "amount");
+		GetClientWeapon(attacker, AtkWeap, 255);
+		Display(attacker, 10, "%N[%i] attack infected with %s dmg %i.", attacker, AttackerTeam, AtkWeap, DmgDone);
+	}
+	return Action:0;
+}
+
+public Action:Event_InfectedDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if (IsClientTeamSurvivor(attacker))
+	{
+		new IsHeadshot = GetEventBool(event, "headshot");
+		new IsMinigun = GetEventBool(event, "minigun");
+		new IsExplode = GetEventBool(event, "blast");
+		ShopAddCashToPlayer(attacker, ShopGetInfectedValue(IsHeadshot, IsMinigun, IsExplode));
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerHurt(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new attackerentid = GetEventInt(event, "attackerentid");
+	new DmgDone = GetEventInt(event, "dmg_health");
+	new var1;
+	if (attacker && attackerentid)
+	{
+		if (IsActiveFlameShield[client])
+		{
+			IgniteEntity(attackerentid, 5.0, false, 0.0, false);
+		}
+	}
+	if (IsActiveVampiric[client])
+	{
+		AbilityVampiric(client, DmgDone);
+	}
+	new var2;
+	if (attacker != client && client && attacker && IsClientInGame(client) && IsClientInGame(attacker))
+	{
+		new AttackerTeam = GetClientTeam(attacker);
+		new VictimTeam = GetClientTeam(client);
+		if (VictimTeam != AttackerTeam)
+		{
+			new String:AtkWeap[256];
+			new String:VictimClass[256];
+			new String:AttackerClass[256];
+			GetClientModel(client, VictimClass, 255);
+			GetClientModel(attacker, AttackerClass, 255);
+			GetEventString(event, "weapon", AtkWeap, 255);
+			Display(attacker, 10, "%N[%i] attack %N[%i] with %s  dmg %i.", attacker, AttackerTeam, client, VictimTeam, AtkWeap, DmgDone);
+			if (IsActiveFireBullet[attacker])
+			{
+				IgniteEntity(client, 5.0, false, 0.0, false);
+			}
+			if (IsActiveFreezingBullet[attacker])
+			{
+				FreezeClient(client, 4);
+			}
+			if (IsActiveAcidBullet[attacker])
+			{
+				AcidClient(client, 6);
+			}
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerDeath(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	new var1;
+	if (attacker != client && client && attacker && IsClientInGame(client) && IsClientInGame(attacker))
+	{
+		new String:VictimClass[256];
+		new String:AttackerClass[256];
+		GetClientModel(client, VictimClass, 255);
+		GetClientModel(attacker, AttackerClass, 255);
+		new AttackerTeam = GetClientTeam(attacker);
+		new VictimTeam = GetClientTeam(client);
+		if (VictimTeam != AttackerTeam)
+		{
+			if (StrContains(AttackerClass, "survivor", false) != -1)
+			{
+				if (StrContains(VictimClass, "hunter", false) != -1)
+				{
+					ShopAddCashToPlayer(attacker, HunterValue);
+				}
+				else
+				{
+					if (StrContains(VictimClass, "smoker", false) != -1)
+					{
+						ShopAddCashToPlayer(attacker, SmokerValue);
+					}
+					if (StrContains(VictimClass, "boomer", false) != -1)
+					{
+						ShopAddCashToPlayer(attacker, BoomerValue);
+					}
+					if (StrContains(VictimClass, "charger", false) != -1)
+					{
+						ShopAddCashToPlayer(attacker, ChargerValue);
+					}
+					if (StrContains(VictimClass, "spitter", false) != -1)
+					{
+						ShopAddCashToPlayer(attacker, SpitterValue);
+					}
+					if (StrContains(VictimClass, "jockey", false) != -1)
+					{
+						ShopAddCashToPlayer(attacker, JockeyValue);
+					}
+					if (StrContains(VictimClass, "hulk", false) != -1)
+					{
+						ShopAddCashToTeamPlayers(TankValue, GetClientTeam(attacker));
+						Display(0, 3, "A Tank have been killed by %N, All survivors got %i Aranging Power.", attacker, TankValueExtra);
+						ShopAddCashToPlayer(attacker, TankValueExtra);
+					}
+				}
+			}
+			if (attacker != client)
+			{
+				if (0 < CostPlayerDeath)
+				{
+					ShopRemoveCashFromPlayer(client, CostPlayerDeath);
+					Display(0, 3, "%N have been killed, Losing %i Aranging Power", client, CostPlayerDeath);
+				}
+			}
+		}
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerHealBegin(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "subject"));
+	new CurHealth = AbilityGetPlayerHealth(client);
+	if (0 < client)
+	{
+		PlayersPrevHealth[client] = CurHealth;
+	}
+	return Action:0;
+}
+
+public Action:Event_PlayerHealEnd(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public Action:Event_PlayerHealSuccess(Handle:event, String:name[], bool:dontBroadcast)
+{
+	new client = GetClientOfUserId(GetEventInt(event, "subject"));
+	new Amount = GetEventInt(event, "health_restored");
+	if (0 < client)
+	{
+		AbilitySetPlayerFirstAidHeal(client, PlayersPrevHealth[client]);
+	}
+	return Action:0;
+}
+
+public Action:Event_FinaleWin(Handle:event, String:name[], bool:dontBroadcast)
+{
+	Reset_ArangShop();
+	return Action:0;
+}
+
+public Action:Event_PlayerIncap(Handle:event, String:name[], bool:dontBroadcast)
+{
+	return Action:0;
+}
+
+public ShopSetCashToPlayers_Initial()
+{
+	IsShopPassOnce = false;
+	new Index = 1;
+	while (Index <= 64)
+	{
+		PlayersCash[Index] = InitialValue;
+		PlayersPriceScale[Index] = InitialPriceScale;
+		Index++;
+	}
+	return 0;
+}
+
+public ShopSetCashToPlayer(Index, Cash)
+{
+	new Value = Cash;
+	if (0 < ShopMaxValue)
+	{
+		if (Value > ShopMaxValue)
+		{
+			Value = ShopMaxValue;
+		}
+	}
+	PlayersCash[Index] = Value;
+	return Value;
+}
+
+public ShopSetCashToPlayers(Cash)
+{
+	new Val;
+	new Index = 1;
+	while (Index <= 64)
+	{
+		Val = ShopSetCashToPlayer(Index, Cash);
+		Index++;
+	}
+	return Val;
+}
+
+public ShopAddCashToPlayer(client, Cash)
+{
+	new Val = RoundToNearest(float(Cash) * GetConVarFloat(HCVarShopIncomeMult));
+	if (0 < Val)
+	{
+		new LastVal = PlayersCash[client];
+		Val = ShopSetCashToPlayer(client, PlayersCash[client][Val]) - LastVal;
+		if (0 < Val)
+		{
+			Display(client, 1, "You've got Aranging Power %i (Now you have %i).", Val, PlayersCash[client]);
+		}
+	}
+	return Val;
+}
+
+public ShopAddCashToTeamPlayers(Cash, Team)
+{
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			if (Team == GetClientTeam(Index))
+			{
+				ShopAddCashToPlayer(Index, Cash);
+			}
+		}
+		Index++;
+	}
+	return 0;
+}
+
+public ShopAddCashToPlayers(Cash)
+{
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		ShopAddCashToPlayer(Index, Cash);
+		Index++;
+	}
+	return 0;
+}
+
+public ShopRemoveCashFromPlayer(client, Cash)
+{
+	if (Cash)
+	{
+		new CurCash = PlayersCash[client];
+		if (CurCash > Cash)
+		{
+			CurCash -= Cash;
+		}
+		else
+		{
+			CurCash = 0;
+		}
+		PlayersCash[client] = CurCash;
+	}
+	else
+	{
+		PlayersCash[client] = 0;
+	}
+	return 0;
+}
+
+public ShopRemoveCashFromPlayers(Cash)
+{
+	new Index = 1;
+	while (Index <= 64)
+	{
+		ShopRemoveCashFromPlayer(Index, Cash);
+		Index++;
+	}
+	return 0;
+}
+
+public bool:ShopCheck(client, Price)
+{
+	if (HCVarShopFree)
+	{
+		IsShoppingFree = GetConVarBool(HCVarShopFree);
+	}
+	new CurCash = PlayersCash[client];
+	if (IsShopPassOnce)
+	{
+		return true;
+	}
+	new var1;
+	if (CurCash >= Price || IsShoppingFree)
+	{
+		return true;
+	}
+	Display(client, 3, "You needs %i Aranging Power to buy this item. (You have %i Aranging Power)", Price, CurCash);
+	return false;
+}
+
+public bool:ShopRTDInfo(client, String:ItemTitle[])
+{
+	if (IsRTDPassOnce)
+	{
+		IsRTDPassOnce = false;
+		Display(0, 3, "\x01\x03%N rolled the dice and got %s \x01  ", client, ItemTitle);
+		return true;
+	}
+	return false;
+}
+
+public bool:ShopBuy(client, String:ItemTitle[], Price)
+{
+	new CurCash = PlayersCash[client];
+	new var1;
+	if (IsShopPassOnce || IsShoppingFree || ShopRTDInfo(client, ItemTitle))
+	{
+		IsShopPassOnce = false;
+		return true;
+	}
+	if (ShopCheck(client, Price))
+	{
+		CurCash -= Price;
+		PlayersCash[client] = CurCash;
+		Display(client, 3, "You bought %s. (Remaining %i Aranging Power)", ItemTitle, CurCash);
+		return true;
+	}
+	return false;
+}
+
+public ShopBuyItem(client, String:ItemTitle[], String:ItemCommand[], Price)
+{
+	if (IsShopPassOnce)
+	{
+		IsShopPassOnce = false;
+		ExecClientCommand(client, ItemCommand);
+		return 1;
+	}
+	new var1;
+	if (ShopBuy(client, ItemTitle, Price) || IsShopPassOnce || ShopRTDInfo(client, ItemTitle))
+	{
+		IsRTDPassOnce = false;
+		ExecClientCommand(client, ItemCommand);
+		return 1;
+	}
+	return 0;
+}
+
+public ShopGetInfectedValue(IsHeadshot, IsMinigun, IsExplode)
+{
+	new Val = GetRandomInt(20, 30);
+	if (IsHeadshot)
+	{
+		Val = GetRandomInt(3, 8) + Val;
+	}
+	return Val;
+}
+
+public Action:ResetShoppingCommand(client, args)
+{
+	Reset_ArangShop();
+	return Action:3;
+}
+
+public Action:ShowShoppingStatus(client, args)
+{
+	Display(client, 3, "ARANG Shop Status");
+	new Index = 1;
+	while (GetMaxClients() >= Index)
+	{
+		if (IsClientInGame(Index))
+		{
+			Display(client, 3, "%i %N = %i (x%f)", Index, Index, PlayersCash[Index], PlayersPriceScale[Index]);
+		}
+		Index++;
+	}
+	return Action:3;
+}
+
+public Action:ShowShoppingMenu(client, args)
+{
+	ShowShopMenu(ShopMain_MenuHandler, client, 0, 0);
+	return Action:3;
+}
+
+public Action:ShoppingCommand(client, args)
+{
+	new String:StrItem[16];
+	new String:StrUserId[16];
+	GetCmdArg(1, StrItem, 16);
+	GetCmdArg(2, StrUserId, 16);
+	new SelItem = StringToInt(StrItem, 10);
+	new SelUserId = StringToInt(StrUserId, 10);
+	if (0 < SelUserId)
+	{
+		IsShopPassOnce = true;
+		client = GetClientOfUserId(SelUserId);
+	}
+	ShopSelectItem(client, SelItem, "");
+	return Action:3;
+}
+
+public ShopGetPrice(client, SelItem)
+{
+	new Price = ShopGetItemPrice(client, SelItem);
+	Price = RoundToNearest(PlayersPriceScale[client] * float(Price));
+	return Price;
+}
+
+public ShopGetItemPrice(client, SelItem)
+{
+	switch (SelItem)
+	{
+		case 1000:
+		{
+			return 500;
+		}
+		case 1001:
+		{
+			return 1000;
+		}
+		case 1002:
+		{
+			return 1000;
+		}
+		case 1003:
+		{
+			return 0;
+		}
+		case 1004:
+		{
+			return 4000;
+		}
+		case 1005:
+		{
+			return 4000;
+		}
+		case 1006:
+		{
+			return 4000;
+		}
+		case 1007:
+		{
+			return 8000;
+		}
+		case 1011:
+		{
+			return 500;
+		}
+		case 1021:
+		{
+			return 1000;
+		}
+		case 1031:
+		{
+			return 2500;
+		}
+		case 1033:
+		{
+			return 3000;
+		}
+		case 1034:
+		{
+			return 3000;
+		}
+		case 1037:
+		{
+			return 2500;
+		}
+		case 1038:
+		{
+			return 2000;
+		}
+		case 1041:
+		{
+			return 3500;
+		}
+		case 1042:
+		{
+			return 3500;
+		}
+		case 1051:
+		{
+			return 2000;
+		}
+		case 1056:
+		{
+			return 2500;
+		}
+		case 1057:
+		{
+			return 2500;
+		}
+		case 1061:
+		{
+			return 4000;
+		}
+		case 1091:
+		{
+			return 2000;
+		}
+		case 1092:
+		{
+			return 2000;
+		}
+		case 1093:
+		{
+			return 2000;
+		}
+		case 1094:
+		{
+			return 2000;
+		}
+		case 1095:
+		{
+			return 2000;
+		}
+		case 1096:
+		{
+			return 2000;
+		}
+		case 1097:
+		{
+			return 2000;
+		}
+		case 1098:
+		{
+			return 3000;
+		}
+		case 1099:
+		{
+			return 3000;
+		}
+		case 2000:
+		{
+			return 2000;
+		}
+		case 2001:
+		{
+			return 2000;
+		}
+		case 2002:
+		{
+			return 2000;
+		}
+		case 2003:
+		{
+			new var4;
+			if (PlayersHalfPriceHealing[client])
+			{
+				var4 = 1200;
+			}
+			else
+			{
+				var4 = 2000;
+			}
+			return var4;
+		}
+		case 2004:
+		{
+			new var3;
+			if (PlayersHalfPriceHealing[client])
+			{
+				var3 = 3000;
+			}
+			else
+			{
+				var3 = 4000;
+			}
+			return var3;
+		}
+		case 2005:
+		{
+			new var2;
+			if (PlayersHalfPriceHealing[client])
+			{
+				var2 = 6400;
+			}
+			else
+			{
+				var2 = 8000;
+			}
+			return var2;
+		}
+		case 2006:
+		{
+			new var1;
+			if (PlayersHalfPriceHealing[client])
+			{
+				var1 = 9600;
+			}
+			else
+			{
+				var1 = 12000;
+			}
+			return var1;
+		}
+		case 2011:
+		{
+			return 2000;
+		}
+		case 2012:
+		{
+			return 2000;
+		}
+		case 2018:
+		{
+			return 6000;
+		}
+		case 3000:
+		{
+			return 5000;
+		}
+		case 3001:
+		{
+			return 10000;
+		}
+		case 3002:
+		{
+			return 10000;
+		}
+		case 4000:
+		{
+			return 10000;
+		}
+		case 4001:
+		{
+			return 10000;
+		}
+		case 4002:
+		{
+			return 10000;
+		}
+		case 4003:
+		{
+			return 10000;
+		}
+		case 4004:
+		{
+			return 12000;
+		}
+		case 4005:
+		{
+			return 12000;
+		}
+		case 4006:
+		{
+			return PlayersMaxHealth[client][-25] * 100 + 10000;
+		}
+		case 4007:
+		{
+			return 10000;
+		}
+		case 4008:
+		{
+			return 10000;
+		}
+		case 5000:
+		{
+			return UpCount_Ammo1 * 1000 + 2000;
+		}
+		case 5001:
+		{
+			return UpCount_Ammo2 * 2000 + 2000;
+		}
+		case 5002:
+		{
+			return UpCount_FirstAidUseDuration * 8000 + 10000;
+		}
+		case 5003:
+		{
+			return UpCount_SurvivorReviveEffect * 8000 + 10000;
+		}
+		case 5004:
+		{
+			return 0;
+		}
+		case 5005:
+		{
+			return 0;
+		}
+		case 7000:
+		{
+			return 10;
+		}
+		case 7001:
+		{
+			return 1500;
+		}
+		case 7002:
+		{
+			return 1500;
+		}
+		case 7003:
+		{
+			return 1500;
+		}
+		case 7004:
+		{
+			return 1500;
+		}
+		case 7005:
+		{
+			return 3000;
+		}
+		case 7006:
+		{
+			return 5000;
+		}
+		case 7007:
+		{
+			return 1500;
+		}
+		case 7008:
+		{
+			return 1500;
+		}
+		case 7009:
+		{
+			return 1500;
+		}
+		case 7010:
+		{
+			return 10;
+		}
+		case 7011:
+		{
+			return 1500;
+		}
+		case 7012:
+		{
+			return 1500;
+		}
+		case 7013:
+		{
+			return 1500;
+		}
+		case 7014:
+		{
+			return 1500;
+		}
+		case 7015:
+		{
+			return 3000;
+		}
+		case 7016:
+		{
+			return 10000;
+		}
+		case 7017:
+		{
+			return 1500;
+		}
+		case 7018:
+		{
+			return 1500;
+		}
+		case 7019:
+		{
+			return 1500;
+		}
+		case 8001:
+		{
+			return 4000;
+		}
+		case 8002:
+		{
+			return 1000;
+		}
+		case 8003:
+		{
+			return 1000;
+		}
+		case 8004:
+		{
+			return 1000;
+		}
+		case 8005:
+		{
+			return 1000;
+		}
+		case 8011:
+		{
+			return 1500;
+		}
+		case 8012:
+		{
+			return 1500;
+		}
+		case 8013:
+		{
+			return 1500;
+		}
+		case 9999:
+		{
+			if (HCVarShopRTDValue)
+			{
+				return GetConVarInt(HCVarShopRTDValue);
+			}
+		}
+		default:
+		{
+		}
+	}
+	return 0;
+}
+
+public bool:ShopRTD_IsUsable(client)
+{
+	if (HCVarShopRTDEn)
+	{
+		if (!(GetConVarBool(HCVarShopRTDEn)))
+		{
+			return false;
+		}
+	}
+	new DiceInteval;
+	new DiceDifTime = DiceTick - DiceTime[client];
+	if (HCVarShopRTDInteval)
+	{
+		DiceInteval = GetConVarInt(HCVarShopRTDInteval);
+	}
+	if (DiceDifTime < DiceInteval)
+	{
+		Display(client, 3, "You can not use ArangRoll, Wait for %i seconds to use again.", DiceInteval - DiceDifTime);
+		return false;
+	}
+	DiceTime[client] = DiceTick;
+	return true;
+}
+
+public ShopRTD(client)
+{
+	if (!IsClientInGame(client))
+	{
+		return 0;
+	}
+	new Item;
+	new Float:vec[3] = 0.0;
+	GetClientEyePosition(client, vec);
+	EmitAmbientSound("UI/menu_enter05.wav", vec, client, 130, 0, 1.0, 100, 0.0);
+	IsRTDPassOnce = true;
+	if (GetRandomInt(0, 100) >= 20)
+	{
+		if (GetRandomInt(0, 100) <= 30)
+		{
+			switch (GetRandomInt(1, 7))
+			{
+				case 1:
+				{
+					Item = 2001;
+				}
+				case 2:
+				{
+					Item = 2002;
+				}
+				case 3:
+				{
+					Item = 2003;
+				}
+				case 4:
+				{
+					Item = 2004;
+				}
+				case 5:
+				{
+					Item = 2011;
+				}
+				case 6:
+				{
+					Item = 2012;
+				}
+				case 7:
+				{
+					Item = 2018;
+				}
+				default:
+				{
+				}
+			}
+			return ShopSelectItem(client, Item, "Useful Item");
+		}
+		if (GetRandomInt(0, 100) <= 15)
+		{
+			switch (GetRandomInt(1, 17))
+			{
+				case 1:
+				{
+					Item = 1001;
+				}
+				case 2:
+				{
+					Item = 1002;
+				}
+				case 3:
+				{
+					Item = 1003;
+				}
+				case 4:
+				{
+					Item = 1004;
+				}
+				case 5:
+				{
+					Item = 1005;
+				}
+				case 6:
+				{
+					Item = 1006;
+				}
+				case 7:
+				{
+					Item = 1007;
+				}
+				case 8:
+				{
+					Item = 1007;
+				}
+				case 9:
+				{
+					Item = 1007;
+				}
+				case 10:
+				{
+					Item = 1011;
+				}
+				case 11:
+				{
+					Item = 1012;
+				}
+				case 12:
+				{
+					Item = 1033;
+				}
+				case 13:
+				{
+					Item = 1034;
+				}
+				case 14:
+				{
+					Item = 1041;
+				}
+				case 15:
+				{
+					Item = 1042;
+				}
+				case 16:
+				{
+					Item = 1051;
+				}
+				case 17:
+				{
+					Item = 1061;
+				}
+				default:
+				{
+				}
+			}
+			return ShopSelectItem(client, Item, "Weapon");
+		}
+		if (GetRandomInt(0, 100) <= 15)
+		{
+			switch (GetRandomInt(1, 9))
+			{
+				case 1:
+				{
+					Item = 1091;
+				}
+				case 2:
+				{
+					Item = 1092;
+				}
+				case 3:
+				{
+					Item = 1093;
+				}
+				case 4:
+				{
+					Item = 1094;
+				}
+				case 5:
+				{
+					Item = 1095;
+				}
+				case 6:
+				{
+					Item = 1096;
+				}
+				case 7:
+				{
+					Item = 1097;
+				}
+				case 8:
+				{
+					Item = 1098;
+				}
+				case 9:
+				{
+					Item = 1099;
+				}
+				default:
+				{
+				}
+			}
+			return ShopSelectItem(client, Item, "Melee Weapon");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 2000, "Ammo Refill");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 2005, "Instant Heal");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 2006, "Life Extension");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 2000, "Ammo Refill");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 30001, "Primary Weapon broken");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 30201, "Self Immune Damage");
+		}
+		if (GetRandomInt(0, 100) <= 7)
+		{
+			return ShopSelectItem(client, 30101, "Frostbite");
+		}
+		if (GetRandomInt(0, 100) <= 5)
+		{
+			return ShopSelectItem(client, 30102, "Broken Legs");
+		}
+		if (GetRandomInt(0, 100) <= 5)
+		{
+			return ShopSelectItem(client, 30105, "Minor Hurts");
+		}
+		if (GetRandomInt(0, 100) <= 3)
+		{
+			return ShopSelectItem(client, 30106, "Major Hurts");
+		}
+		if (GetRandomInt(0, 100) <= 1)
+		{
+			return ShopSelectItem(client, 30109, "Instant Death");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 4002, "Fire Bullets");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 4003, "Freezing Bullets");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 4004, "Acid Bullets");
+		}
+		if (GetRandomInt(0, 100) <= 10)
+		{
+			return ShopSelectItem(client, 4005, "Health Regeneration");
+		}
+		if (GetRandomInt(0, 100) <= 5)
+		{
+			return ShopSelectItem(client, 30202, "Arang Powers !");
+		}
+		if (GetRandomInt(0, 100) <= 5)
+		{
+			return ShopSelectItem(client, 30207, "Berserker !");
+		}
+		if (GetRandomInt(0, 100) <= 5)
+		{
+			return ShopSelectItem(client, 30208, "Multi-powers !");
+		}
+		if (GetRandomInt(0, 100) <= 5)
+		{
+			return ShopSelectItem(client, 30209, "INW !!!");
+		}
+		return ShopRTD(client);
+	}
+	if (!Item)
+	{
+		ShopSelectItem(client, 9998, "NOTHING");
+	}
+	return 0;
+}
+
+public AddMenuItemFormat(Handle:menu, bool:En, String:Info[], String:Format[])
+{
+	decl String:Title[192];
+	VFormat(Title, 192, Format, 5);
+	new var1;
+	if (!En)
+	{
+		var1 = 1;
+	}
+	else
+	{
+		var1 = 0;
+	}
+	AddMenuItem(menu, Info, Title, var1);
+	return 0;
+}
+
+public ShopMenu_Add(Handle:menu, client, String:Info[], String:Title[])
+{
+	new SelItem = StringToInt(Info, 10);
+	new Price = ShopGetPrice(client, SelItem);
+	if (0 <= Price)
+	{
+		new String:Disp[192];
+		VFormat(Disp, 192, Title, 5);
+		if (Price)
+		{
+			AddMenuItemFormat(menu, true, Info, "%s - %i", Disp, Price);
+		}
+		else
+		{
+			AddMenuItemFormat(menu, true, Info, "%s", Disp);
+		}
+	}
+	return 0;
+}
+
+public ShowShopMenu(MenuHandler:Handler, client, CatMenu, SubMenu)
+{
+	if (client)
+	{
+		new ShopEnWeapon = 1;
+		new ShopEnAmmo = 1;
+		new ShopEnHeal = 1;
+		new ShopEnSpecial = 1;
+		new ShopEnSpecialTeam = 1;
+		new ShopEnUpgrade = 1;
+		new ShopEnZombie = 1;
+		new ShopEnUtils = 1;
+		new ShopL4d2;
+		new ShopSpWeap;
+		new ShopRTDEn;
+		new ShopEnAchi;
+		ShopL4d2 = 1;
+		if (HCVarShopRTDEn)
+		{
+			ShopRTDEn = GetConVarBool(HCVarShopRTDEn);
+		}
+		ShopSpWeap = 1;
+		ShopEnAchi = 1;
+		if (HCVarShopEnWeapon)
+		{
+			ShopEnWeapon = GetConVarBool(HCVarShopEnWeapon);
+		}
+		if (HCVarShopEnAmmo)
+		{
+			ShopEnAmmo = GetConVarBool(HCVarShopEnAmmo);
+		}
+		if (HCVarShopEnHeal)
+		{
+			ShopEnHeal = GetConVarBool(HCVarShopEnHeal);
+		}
+		if (HCVarShopEnSpecial)
+		{
+			ShopEnSpecial = GetConVarBool(HCVarShopEnSpecial);
+		}
+		if (HCVarShopEnSpecialTeam)
+		{
+			ShopEnSpecialTeam = GetConVarBool(HCVarShopEnSpecialTeam);
+		}
+		if (HCVarShopEnUpgrade)
+		{
+			ShopEnUpgrade = GetConVarBool(HCVarShopEnUpgrade);
+		}
+		if (HCVarShopEnUtilities)
+		{
+			ShopEnUpgrade = GetConVarBool(HCVarShopEnUtilities);
+		}
+		if (HCVarShopEnZombie)
+		{
+			ShopEnZombie = GetConVarBool(HCVarShopEnZombie);
+		}
+		new Handle:menu = CreateMenu(Handler, MenuAction:28);
+		new String:ShopTitle[128];
+		Format(ShopTitle, 128, "ARANG SHOP (v%s) - (%i Aranging Power)", "2.4", PlayersCash[client]);
+		SetMenuTitle(menu, ShopTitle);
+		Display(client, 10, "%N ShowShopMenu %i %i", client, CatMenu, SubMenu);
+		if (!IsClientTeamInfected(client))
+		{
+			switch (CatMenu)
+			{
+				case 0:
+				{
+					if (ShopEnWeapon)
+					{
+						if (ShopL4d2)
+						{
+							ShopMenu_Add(menu, client, "0100", "Weapons");
+						}
+						ShopMenu_Add(menu, client, "0100", "Weapons");
+					}
+					if (ShopEnAmmo)
+					{
+						ShopMenu_Add(menu, client, "0002", "Ammo, Bombs and Healing");
+					}
+					if (ShopEnSpecial)
+					{
+						ShopMenu_Add(menu, client, "0003", "Special Abilities (Team)");
+					}
+					if (ShopEnSpecialTeam)
+					{
+						ShopMenu_Add(menu, client, "0004", "Special Abilities");
+					}
+					if (ShopEnUpgrade)
+					{
+						ShopMenu_Add(menu, client, "0005", "Upgrades");
+					}
+					if (ShopEnUtils)
+					{
+						ShopMenu_Add(menu, client, "0008", "Utilities");
+					}
+					if (ShopRTDEn)
+					{
+						ShopMenu_Add(menu, client, "9999", "Roll the Dice");
+					}
+					if (ShopEnZombie)
+					{
+						ShopMenu_Add(menu, client, "0007", "Zombies");
+					}
+					if (ShopEnAchi)
+					{
+						ShopMenu_Add(menu, client, "0006", "Achievements");
+					}
+				}
+				case 1:
+				{
+					if (ShopEnWeapon)
+					{
+						ShopMenu_Add(menu, client, "1000", "Dual Pistols");
+						ShopMenu_Add(menu, client, "1001", "Uzi");
+						ShopMenu_Add(menu, client, "1002", "Shotgun");
+						ShopMenu_Add(menu, client, "1004", "Assault Rifle");
+						ShopMenu_Add(menu, client, "1005", "Auto Shotgun");
+						ShopMenu_Add(menu, client, "1006", "Hunting Rifle");
+						ShopMenu_Add(menu, client, "1007", "Minigun Turret");
+					}
+				}
+				case 2:
+				{
+					if (ShopEnAmmo)
+					{
+						ShopMenu_Add(menu, client, "2000", "Ammo Refill");
+						ShopMenu_Add(menu, client, "2001", "Molotov ");
+						ShopMenu_Add(menu, client, "2002", "Pipe Bomb ");
+						ShopMenu_Add(menu, client, "2003", "Pills ");
+						ShopMenu_Add(menu, client, "2004", "First Aid Kit ");
+						ShopMenu_Add(menu, client, "2005", "Instant Healing  ");
+						ShopMenu_Add(menu, client, "2006", "Life Extension ");
+						ShopMenu_Add(menu, client, "2011", "Boomer Bile");
+						ShopMenu_Add(menu, client, "2012", "Adrenaline");
+						ShopMenu_Add(menu, client, "2018", "Defibrillator");
+					}
+				}
+				case 3:
+				{
+					if (ShopEnSpecialTeam)
+					{
+						ShopMenu_Add(menu, client, "3000", "Ammo Infinity (%is)", LenAmmoInfinity);
+						ShopMenu_Add(menu, client, "3001", "SlowMo Infected (%is)", LenSlowMo);
+						ShopMenu_Add(menu, client, "3002", "Immune Damage (%is)", LenImmune);
+					}
+				}
+				case 4:
+				{
+					if (ShopEnSpecial)
+					{
+						ShopMenu_Add(menu, client, "4000", "High Jump Shoe (%is)", LenHighJump[client]);
+						ShopMenu_Add(menu, client, "4001", "Speedy Shoe (%is)", LenSpeedShoe[client]);
+						ShopMenu_Add(menu, client, "4002", "Fire Bullet (%is)", LenFireBullet[client]);
+						ShopMenu_Add(menu, client, "4003", "Freezing Bullet (%is)", LenFreezingBullet[client]);
+						ShopMenu_Add(menu, client, "4004", "Acid Bullet (%is)", LenAcidBullet[client]);
+						ShopMenu_Add(menu, client, "4005", "Health Regeneration (%is)", LenHealthRegen[client]);
+						ShopMenu_Add(menu, client, "4006", "Maximum Health Upgrade (50 points)");
+						ShopMenu_Add(menu, client, "4007", "Flame Shield (%is)", LenFlameShield[client]);
+						ShopMenu_Add(menu, client, "4008", "Vampiric Vaccine (%is)", LenVampiric[client]);
+					}
+				}
+				case 5:
+				{
+					if (ShopEnUpgrade)
+					{
+						ShopMenu_Add(menu, client, "5000", "Additional Ammo 30% for Uzi, Hunting Rifle");
+						ShopMenu_Add(menu, client, "5001", "Additional Ammo 10% for Assault Rifle, Shotguns");
+						ShopMenu_Add(menu, client, "5002", "Faster First-Aid Effective (+Shop Discount 5%)");
+						ShopMenu_Add(menu, client, "5003", "Incapacitated Recovery Effective (+Shop Discount 5%)");
+					}
+				}
+				case 7:
+				{
+					if (ShopEnZombie)
+					{
+						ShopMenu_Add(menu, client, "7000", "1 zombie");
+						ShopMenu_Add(menu, client, "7001", "A Mob of Zombies");
+						ShopMenu_Add(menu, client, "7002", "Hunter");
+						ShopMenu_Add(menu, client, "7003", "Smoker");
+						ShopMenu_Add(menu, client, "7004", "Boomer");
+						ShopMenu_Add(menu, client, "7005", "Witch");
+						ShopMenu_Add(menu, client, "7006", "Tank");
+						ShopMenu_Add(menu, client, "7007", "Charger");
+						ShopMenu_Add(menu, client, "7008", "Spitter");
+						ShopMenu_Add(menu, client, "7009", "Jockey");
+					}
+				}
+				case 8:
+				{
+					if (ShopEnUtils)
+					{
+						ShopMenu_Add(menu, client, "8001", "Ammo Pile");
+						ShopMenu_Add(menu, client, "8002", "Gas Can");
+						ShopMenu_Add(menu, client, "8003", "Propane Tank");
+						ShopMenu_Add(menu, client, "8004", "Oxygen Tank");
+						ShopMenu_Add(menu, client, "8005", "Firework Crate");
+						if (ShopRTDEn)
+						{
+							ShopMenu_Add(menu, client, "8011", "Explosive Ammunition Crate");
+							ShopMenu_Add(menu, client, "8012", "Incendairy Ammunition Crate");
+							ShopMenu_Add(menu, client, "8013", "Laser Sight Crate");
+						}
+					}
+				}
+				case 100:
+				{
+					ShopMenu_Add(menu, client, "0109", "Melee");
+					ShopMenu_Add(menu, client, "0101", "Pistols & SMGs");
+					ShopMenu_Add(menu, client, "0103", "Rifles");
+					ShopMenu_Add(menu, client, "0104", "Shotguns");
+					ShopMenu_Add(menu, client, "0105", "Snipers");
+					ShopMenu_Add(menu, client, "1061", "Granade Launcher");
+					ShopMenu_Add(menu, client, "1007", "Turret");
+				}
+				case 101:
+				{
+					ShopMenu_Add(menu, client, "1000", "Pistol");
+					ShopMenu_Add(menu, client, "1011", "Magnum");
+					ShopMenu_Add(menu, client, "1001", "Uzi");
+					ShopMenu_Add(menu, client, "1021", "Silenced Mac-10");
+					if (ShopSpWeap)
+					{
+						ShopMenu_Add(menu, client, "1031", "MP5 (CS)");
+					}
+				}
+				case 103:
+				{
+					ShopMenu_Add(menu, client, "1004", "M16 Assault Rifle");
+					ShopMenu_Add(menu, client, "1033", "AK47");
+					ShopMenu_Add(menu, client, "1034", "FN SCAR");
+					ShopMenu_Add(menu, client, "1038", "M60");
+					if (ShopSpWeap)
+					{
+						ShopMenu_Add(menu, client, "1037", "SG 552 (CS)");
+					}
+				}
+				case 104:
+				{
+					ShopMenu_Add(menu, client, "1002", "Pump Shotgun");
+					ShopMenu_Add(menu, client, "1041", "Chrome Shotgun");
+					ShopMenu_Add(menu, client, "1005", "Auto Shotgun");
+					ShopMenu_Add(menu, client, "1042", "Combat Shotgun");
+				}
+				case 105:
+				{
+					ShopMenu_Add(menu, client, "1006", "Hunting Sniper");
+					ShopMenu_Add(menu, client, "1051", "Military Sniper");
+					if (ShopSpWeap)
+					{
+						ShopMenu_Add(menu, client, "1056", "Scout (CS)");
+						ShopMenu_Add(menu, client, "1057", "AWP (CS)");
+					}
+				}
+				case 109:
+				{
+					new CA;
+					new C1;
+					new C2;
+					new C3;
+					new C4;
+					new C5;
+					new C6;
+					if (HCVarShopEnMeleeAll)
+					{
+						CA = GetConVarBool(HCVarShopEnMeleeAll);
+					}
+					if (!CA)
+					{
+						GetCurrentMap(CurrentMap, 64);
+						C1 = StrContains(CurrentMap, "c1m", false) == 0;
+						C2 = StrContains(CurrentMap, "c2m", false) == 0;
+						C3 = StrContains(CurrentMap, "c3m", false) == 0;
+						C4 = StrContains(CurrentMap, "c4m", false) == 0;
+						C5 = StrContains(CurrentMap, "c5m", false) == 0;
+						C6 = StrContains(CurrentMap, "c6m", false) == 0;
+					}
+					new var1;
+					if (CA || C1 || C3)
+					{
+						ShopMenu_Add(menu, client, "1091", "Cricket Bat");
+					}
+					new var2;
+					if (CA || C1 || C2 || C3 || C6)
+					{
+						ShopMenu_Add(menu, client, "1092", "Crowbar");
+					}
+					new var3;
+					if (CA || C3 || C4 || C5)
+					{
+						ShopMenu_Add(menu, client, "1093", "Frying Pan");
+					}
+					new var4;
+					if (CA || C1 || C2 || C3 || C4 || C6)
+					{
+						ShopMenu_Add(menu, client, "1094", "Fire Axe");
+					}
+					new var5;
+					if (CA || C2 || C5)
+					{
+						ShopMenu_Add(menu, client, "1095", "Guitar");
+					}
+					new var6;
+					if (CA || C3 || C5)
+					{
+						ShopMenu_Add(menu, client, "1096", "Machete");
+					}
+					new var7;
+					if (CA || C5)
+					{
+						ShopMenu_Add(menu, client, "1097", "Tonfa");
+					}
+					new var8;
+					if (CA || C1 || C2 || C4 || C6)
+					{
+						ShopMenu_Add(menu, client, "1098", "Katana");
+					}
+					ShopMenu_Add(menu, client, "1099", "Chainsaw");
+				}
+				default:
+				{
+				}
+			}
+		}
+		else
+		{
+			switch (CatMenu)
+			{
+				case 0:
+				{
+					if (ShopEnZombie)
+					{
+						ShopMenu_Add(menu, client, "7010", "1 zombie");
+						ShopMenu_Add(menu, client, "7011", "A Mob of Zombies");
+						ShopMenu_Add(menu, client, "7012", "Hunter");
+						ShopMenu_Add(menu, client, "7013", "Smoker");
+						ShopMenu_Add(menu, client, "7014", "Boomer");
+						ShopMenu_Add(menu, client, "7015", "Witch");
+						ShopMenu_Add(menu, client, "7016", "Tank");
+						ShopMenu_Add(menu, client, "7017", "Charger");
+						ShopMenu_Add(menu, client, "7018", "Spitter");
+						ShopMenu_Add(menu, client, "7019", "Jockey");
+					}
+				}
+				default:
+				{
+				}
+			}
+		}
+		SetMenuExitButton(menu, true);
+		DisplayMenu(menu, client, 0);
+		EmitSoundToClient(client, "UI/Menu_Horror01.wav", -2, 0, 75, 0, 1.0, 100, -1, NULL_VECTOR, NULL_VECTOR, true, 0.0);
+		return 1;
+	}
+	PrintToServer("Arang shop can be use in-game only.");
+	return 0;
+}
+
+public ShopMain_MenuHandler(Handle:menu, MenuAction:action, client, itemindex)
+{
+	if (action == MenuAction:4)
+	{
+		new SelStyle;
+		new String:SelInfo[64];
+		new String:SelTitle[128];
+		GetMenuItem(menu, itemindex, SelInfo, 64, SelStyle, SelTitle, 128);
+		new SelItem = StringToInt(SelInfo, 10);
+		Display(client, 10, "%N ShopMain_MenuHandler %i", client, SelItem);
+		ShopSelectItem(client, SelItem, SelTitle);
+	}
+	return 0;
+}
+
+public ShopSelectItem(client, SelItem, String:Title[])
+{
+	new Price = ShopGetPrice(client, SelItem);
+	Display(client, 10, "%N ShopSelectItem %i ", client, SelItem);
+	switch (SelItem)
+	{
+		case 1:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 1, 0);
+		}
+		case 2:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 2, 0);
+		}
+		case 3:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 3, 0);
+		}
+		case 4:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 4, 0);
+		}
+		case 5:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 5, 0);
+		}
+		case 6:
+		{
+			ShowAchievements(client);
+		}
+		case 7:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 7, 0);
+		}
+		case 8:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 8, 0);
+		}
+		case 100:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 100, 0);
+		}
+		case 101:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 101, 0);
+		}
+		case 102:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 102, 0);
+		}
+		case 103:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 103, 0);
+		}
+		case 104:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 104, 0);
+		}
+		case 105:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 105, 0);
+		}
+		case 109:
+		{
+			ShowShopMenu(ShopMain_MenuHandler, client, 109, 0);
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 1000:
+		{
+			ShopBuyItem(client, Title, "give pistol", Price);
+		}
+		case 1001:
+		{
+			ShopBuyItem(client, Title, "give smg", Price);
+		}
+		case 1002:
+		{
+			ShopBuyItem(client, Title, "give pumpshotgun", Price);
+		}
+		case 1004:
+		{
+			ShopBuyItem(client, Title, "give rifle", Price);
+		}
+		case 1005:
+		{
+			ShopBuyItem(client, Title, "give autoshotgun", Price);
+		}
+		case 1006:
+		{
+			ShopBuyItem(client, Title, "give hunting_rifle", Price);
+		}
+		case 1007:
+		{
+			if (IsExecCommand("arang_shop_buy_minigun"))
+			{
+				if (ShopBuy(client, Title, Price))
+				{
+					AbilityMinigun_Spawn(client, 0);
+				}
+			}
+			else
+			{
+				Display(client, 3, "Can not Execute Minigun Command.");
+			}
+		}
+		case 1011:
+		{
+			ShopBuyItem(client, Title, "give pistol_magnum", Price);
+		}
+		case 1021:
+		{
+			ShopBuyItem(client, Title, "give smg_silenced", Price);
+		}
+		case 1031:
+		{
+			ShopBuyItem(client, Title, "give smg_mp5", Price);
+		}
+		case 1033:
+		{
+			ShopBuyItem(client, Title, "give rifle_ak47", Price);
+		}
+		case 1034:
+		{
+			ShopBuyItem(client, Title, "give rifle_desert", Price);
+		}
+		case 1037:
+		{
+			ShopBuyItem(client, Title, "give rifle_sg552", Price);
+		}
+		case 1038:
+		{
+			ShopBuyItem(client, Title, "give rifle_m60", Price);
+		}
+		case 1041:
+		{
+			ShopBuyItem(client, Title, "give shotgun_chrome", Price);
+		}
+		case 1042:
+		{
+			ShopBuyItem(client, Title, "give shotgun_spas", Price);
+		}
+		case 1051:
+		{
+			ShopBuyItem(client, Title, "give sniper_military", Price);
+		}
+		case 1056:
+		{
+			ShopBuyItem(client, Title, "give sniper_awp", Price);
+		}
+		case 1057:
+		{
+			ShopBuyItem(client, Title, "give sniper_scout", Price);
+		}
+		case 1061:
+		{
+			ShopBuyItem(client, Title, "give grenade_launcher", Price);
+		}
+		case 1091:
+		{
+			ShopBuyItem(client, Title, "give cricket_bat", Price);
+		}
+		case 1092:
+		{
+			ShopBuyItem(client, Title, "give crowbar", Price);
+		}
+		case 1093:
+		{
+			ShopBuyItem(client, Title, "give frying_pan", Price);
+		}
+		case 1094:
+		{
+			ShopBuyItem(client, Title, "give fireaxe", Price);
+		}
+		case 1095:
+		{
+			ShopBuyItem(client, Title, "give electric_guitar", Price);
+		}
+		case 1096:
+		{
+			ShopBuyItem(client, Title, "give machete", Price);
+		}
+		case 1097:
+		{
+			ShopBuyItem(client, Title, "give tonfa", Price);
+		}
+		case 1098:
+		{
+			ShopBuyItem(client, Title, "give katana", Price);
+		}
+		case 1099:
+		{
+			ShopBuyItem(client, Title, "give chainsaw", Price);
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 2000:
+		{
+			ShopBuyItem(client, Title, "give ammo", Price);
+		}
+		case 2001:
+		{
+			ShopBuyItem(client, Title, "give molotov", Price);
+		}
+		case 2002:
+		{
+			ShopBuyItem(client, Title, "give pipe_bomb", Price);
+		}
+		case 2003:
+		{
+			ShopBuyItem(client, Title, "give pain_pills", Price);
+		}
+		case 2004:
+		{
+			ShopBuyItem(client, Title, "give first_aid_kit", Price);
+		}
+		case 2005:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityInstantHealth(client, 100))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 2006:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityInstantHealth(client, 200))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 2011:
+		{
+			ShopBuyItem(client, Title, "give vomitjar", Price);
+		}
+		case 2012:
+		{
+			ShopBuyItem(client, Title, "give adrenaline", Price);
+		}
+		case 2018:
+		{
+			ShopBuyItem(client, Title, "give defibrillator", Price);
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 3000:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityAmmoInfinity_Begin(client))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 3001:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityEnemySlowMo_Begin(client))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 3002:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityImmuneDamage_Begin(client))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 4000:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityHighJumpShoe_Begin(client, 0))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4001:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilitySpeedShoe_Begin(client, 0))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4002:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityFireBullet_Begin(client))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4003:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityFreezingBullet_Begin(client))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4004:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityAcidBullet_Begin(client))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4005:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilityHealthRegen_Begin(client, 0))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4006:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilitySetPlayerMaxHealthAddon(client, 50))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4007:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilitySetPlayerFlameShield(client, 50))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 4008:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (AbilitySetPlayerVampiric(client, 50))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 5000:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (Upgrade_AdditionalAmmo(client, 1, 30))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 5001:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (Upgrade_AdditionalAmmo(client, 2, 30))
+				{
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 5002:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (Upgrade_FirstAidUseDuration(client))
+				{
+					PlayersPriceScale[client] *= 0.95;
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		case 5003:
+		{
+			if (ShopCheck(client, Price))
+			{
+				if (Upgrade_SurvivorReviveEffect(client))
+				{
+					PlayersPriceScale[client] *= 0.95;
+					ShopBuy(client, Title, Price);
+				}
+			}
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 7000:
+		{
+			ShopBuyItem(client, Title, "z_spawn infected", Price);
+		}
+		case 7001:
+		{
+			ShopBuyItem(client, Title, "z_spawn mob", Price);
+		}
+		case 7002:
+		{
+			ShopBuyItem(client, Title, "z_spawn hunter", Price);
+		}
+		case 7003:
+		{
+			ShopBuyItem(client, Title, "z_spawn smoker", Price);
+		}
+		case 7004:
+		{
+			ShopBuyItem(client, Title, "z_spawn boomer", Price);
+		}
+		case 7005:
+		{
+			ShopBuyItem(client, Title, "z_spawn witch", Price);
+		}
+		case 7006:
+		{
+			ShopBuyItem(client, Title, "z_spawn tank", Price);
+		}
+		case 7007:
+		{
+			ShopBuyItem(client, Title, "z_spawn charger", Price);
+		}
+		case 7008:
+		{
+			ShopBuyItem(client, Title, "z_spawn spitter", Price);
+		}
+		case 7009:
+		{
+			ShopBuyItem(client, Title, "z_spawn jockey", Price);
+		}
+		case 7010:
+		{
+			ShopBuyItem(client, Title, "z_spawn infected", Price);
+		}
+		case 7011:
+		{
+			ShopBuyItem(client, Title, "z_spawn mob", Price);
+		}
+		case 7012:
+		{
+			ShopBuyItem(client, Title, "z_spawn hunter auto", Price);
+		}
+		case 7013:
+		{
+			ShopBuyItem(client, Title, "z_spawn smoker auto", Price);
+		}
+		case 7014:
+		{
+			ShopBuyItem(client, Title, "z_spawn boomer auto", Price);
+		}
+		case 7015:
+		{
+			ShopBuyItem(client, Title, "z_spawn witch auto", Price);
+		}
+		case 7016:
+		{
+			ShopBuyItem(client, Title, "z_spawn tank auto", Price);
+		}
+		case 7017:
+		{
+			ShopBuyItem(client, Title, "z_spawn charger auto", Price);
+		}
+		case 7018:
+		{
+			ShopBuyItem(client, Title, "z_spawn spitter  auto", Price);
+		}
+		case 7019:
+		{
+			ShopBuyItem(client, Title, "z_spawn jockey auto", Price);
+		}
+		case 8001:
+		{
+			if (ShopCheck(client, Price))
+			{
+				new Ent = CreateEntityAtPlayer(client, "weapon_ammo_spawn", 64.0, 0.0);
+				if (Ent)
+				{
+					ShopBuy(client, Title, Price);
+					Display(0, 3, "\x01\x03%N\x01  deployed Ammunition", client);
+				}
+			}
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 8002:
+		{
+			ShopBuyItem(client, Title, "give gascan", Price);
+		}
+		case 8003:
+		{
+			ShopBuyItem(client, Title, "give propanetank", Price);
+		}
+		case 8004:
+		{
+			ShopBuyItem(client, Title, "give oxygentank", Price);
+		}
+		case 8005:
+		{
+			ShopBuyItem(client, Title, "give fireworkcrate", Price);
+		}
+		case 8011:
+		{
+			if (ShopCheck(client, Price))
+			{
+				new Ent = CreateEntityAtPlayer(client, "upgrade_ammo_explosive", 64.0, 0.0);
+				if (Ent)
+				{
+					ShopBuy(client, Title, Price);
+					Display(0, 3, "\x01\x03%N\x01  deployed Explosive Ammunition", client);
+				}
+			}
+		}
+		case 8012:
+		{
+			if (ShopCheck(client, Price))
+			{
+				new Ent = CreateEntityAtPlayer(client, "upgrade_ammo_incendiary", 64.0, 0.0);
+				if (Ent)
+				{
+					ShopBuy(client, Title, Price);
+					Display(0, 3, "\x01\x03%N\x01  deployed Incendairy Ammunition", client);
+				}
+			}
+		}
+		case 8013:
+		{
+			if (ShopCheck(client, Price))
+			{
+				new Ent = CreateEntityAtPlayer(client, "upgrade_laser_sight", 64.0, 0.0);
+				if (Ent)
+				{
+					ShopBuy(client, Title, Price);
+					Display(0, 3, "\x01\x03%N\x01  deployed Laser Sight Upgrade", client);
+				}
+			}
+		}
+		default:
+		{
+		}
+	}
+	switch (SelItem)
+	{
+		case 9998:
+		{
+			Display(0, 3, "\x01\x03%N rolled the dice and got NOTHING. \x01 ", client);
+		}
+		case 9999:
+		{
+			if (ShopRTD_IsUsable(client))
+			{
+				if (ShopBuy(client, Title, Price))
+				{
+					ShopRTD(client);
+				}
+			}
+		}
+		case 30001:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				new ent = GetPlayerWeaponSlot(client, 0);
+				if (0 < ent)
+				{
+					RemovePlayerItem(client, ent);
+					RemoveEdict(ent);
+				}
+			}
+		}
+		case 30101:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				FreezeClient(client, 10);
+			}
+		}
+		case 30102:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				AbilitySetPlayerIncap(client, 1);
+			}
+		}
+		case 30105:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				SlapPlayer(client, 30, true);
+			}
+		}
+		case 30106:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				SlapPlayer(client, 60, true);
+			}
+		}
+		case 30109:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				ForcePlayerSuicide(client);
+			}
+		}
+		case 30201:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				AbilityPlayerImmune(client, 60.0);
+			}
+		}
+		case 30202:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				ShopAddCashToPlayer(client, 15000);
+			}
+		}
+		case 30207:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				AbilityHealthRegen_Begin(client, 1);
+				AbilityHighJumpShoe_Begin(client, 1);
+				AbilitySpeedShoe_Begin(client, 1);
+			}
+		}
+		case 30208:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				AbilityFireBullet_Begin(client);
+				AbilityFreezingBullet_Begin(client);
+				AbilityAcidBullet_Begin(client);
+			}
+		}
+		case 30209:
+		{
+			if (ShopBuy(client, Title, Price))
+			{
+				AbilitySetPlayerMaxHealthAddon(client, 100);
+				AbilitySetPlayerHealthAddon(client, 500);
+				AbilityPlayerImmune(client, 30.0);
+				AbilityHealthRegen_Begin(client, 1);
+				AbilityHighJumpShoe_Begin(client, 1);
+				AbilitySpeedShoe_Begin(client, 1);
+				AbilityFireBullet_Begin(client);
+				AbilityFreezingBullet_Begin(client);
+				AbilityAcidBullet_Begin(client);
+			}
+		}
+		case 50002:
+		{
+			AbilitySetPlayerMaxHealthAddon(client, 50);
+			AbilitySetPlayerHealthAddon(client, 50);
+		}
+		case 50003:
+		{
+			AbilitySetPlayerHealthAddon(client, 100);
+		}
+		case 50010:
+		{
+			ShopAddCashToPlayer(client, 15000);
+		}
+		case 50011:
+		{
+			AbilityHighJumpShoe_Begin(client, 1);
+		}
+		case 50012:
+		{
+			ShopAddCashToPlayer(client, 30000);
+		}
+		case 50013:
+		{
+			AbilitySpeedShoe_Begin(client, 1);
+		}
+		case 50020:
+		{
+			AbilitySetPlayerMaxHealthAddon(client, -50);
+		}
+		case 50028:
+		{
+			if (!AbilitySetPlayerHealthAddon(client, -25))
+			{
+				ForcePlayerSuicide(client);
+			}
+		}
+		case 50029:
+		{
+			ForcePlayerSuicide(client);
+		}
+		case 50041:
+		{
+			AbilitySetHalfPriceHealing(client, 1);
+		}
+		case 50046:
+		{
+			AbilityInstantHealth(client, 500);
+		}
+		case 50048:
+		{
+			AbilityHealthRegen_Begin(client, 1);
+		}
+		case 90809:
+		{
+			PrintToServer("%N use ShopAddCashToPlayers.", client);
+			ShopAddCashToPlayers(10000);
+		}
+		case 90909:
+		{
+			PrintToServer("%N use ShopAddCashToPlayer.", client);
+			ShopAddCashToPlayer(client, 10000);
+		}
+		default:
+		{
+		}
+	}
+	IsRTDPassOnce = false;
+	return 0;
+}
+
+public ShowAchievements(client)
+{
+	if (IsExecCommand("arang_achievements"))
+	{
+		ClientCommand(client, "arang_achievements");
+	}
+	else
+	{
+		Display(client, 3, "Can not Execute ShowAchievements Command.");
+	}
+	return 0;
+}
+
+public IsClientTeamSurvivor(client)
+{
+	if (client)
+	{
+		return GetClientTeam(client) == 2;
+	}
+	return 0;
+}
+
+public IsClientTeamInfected(client)
+{
+	if (client)
+	{
+		return GetClientTeam(client) == 3;
+	}
+	return 0;
+}
+
+public IsExecCommand(String:InpCommand[])
+{
+	if (GetCommandFlags(InpCommand) != -1)
+	{
+		return 1;
+	}
+	return 0;
+}
+
+public ExecClientCommand(clientId, String:InpCommand[])
+{
+	ServerExecute();
+	new String:Commands[1][256];
+	Commands[0] = "\x04";
+	new String:Command[256];
+	ExplodeString(InpCommand, " ", Commands, 1, 255);
+	strcopy(Command, 255, Commands[0][Commands]);
+	new CommandFlags = GetCommandFlags(Command);
+	SetCommandFlags(Command, CommandFlags & -16385);
+	if (clientId)
+	{
+		FakeClientCommand(clientId, InpCommand);
+	}
+	else
+	{
+		new Index = 1;
+		while (GetMaxClients() >= Index)
+		{
+			if (IsClientInGame(Index))
+			{
+				FakeClientCommand(Index, InpCommand);
+			}
+			Index++;
+		}
+	}
+	SetCommandFlags(Command, CommandFlags | 16384);
+	return 0;
+}
+
+public Display(client, Mode, String:format[])
+{
+	decl String:Buffer[192];
+	VFormat(Buffer, 192, format, 4);
+	if (client)
+	{
+		if (GetMaxClients() > client)
+		{
+			DisplayText(client, Mode, Buffer);
+		}
+	}
+	else
+	{
+		PrintToServer("%s", Buffer);
+		new Index = 1;
+		while (Index < MaxClients)
+		{
+			DisplayText(Index, Mode, Buffer);
+			Index++;
+		}
+	}
+	return 0;
+}
+
+public DisplayText(client, Mode, String:Text[])
+{
+	if (IsClientInGame(client))
+	{
+		switch (Mode)
+		{
+			case 0:
+			{
+				PrintToChat(client, Text);
+			}
+			case 1:
+			{
+				PrintHintText(client, Text);
+			}
+			case 2:
+			{
+				PrintCenterText(client, Text);
+			}
+			case 3:
+			{
+				PrintToChat(client, Text);
+			}
+			default:
+			{
+			}
+		}
+	}
+	return 0;
+}
+
+public CreateMeleeAtPlayer(client, String:EntName[], Float:Distance, Float:AboutGround, String:Name[])
+{
+	new ent;
+	if (0 < client)
+	{
+		decl Float:VecOrigin[3];
+		decl Float:VecAngles[3];
+		decl Float:VecDirection[3];
+		GetClientAbsOrigin(client, VecOrigin);
+		GetClientEyeAngles(client, VecAngles);
+		GetAngleVectors(VecAngles, VecDirection, NULL_VECTOR, NULL_VECTOR);
+		VecOrigin[0] = VecOrigin[0] + VecDirection[0] * Distance;
+		VecOrigin[1] += VecDirection[1] * Distance;
+		VecOrigin[2] += AboutGround;
+		ent = CreateEntityByName(EntName, -1);
+		VecAngles[0] = 0.0;
+		VecAngles[2] = 0.0;
+		TeleportEntity(ent, VecOrigin, NULL_VECTOR, NULL_VECTOR);
+		DispatchKeyValueVector(ent, "Angles", VecAngles);
+		DispatchKeyValue(ent, "melee_weapon", Name);
+		DispatchSpawn(ent);
+	}
+	return ent;
+}
+
+public CreateEntityAtPlayer(client, String:EntName[], Float:Distance, Float:AboutGround)
+{
+	new ent;
+	if (0 < client)
+	{
+		decl Float:VecOrigin[3];
+		decl Float:VecAngles[3];
+		decl Float:VecDirection[3];
+		GetClientAbsOrigin(client, VecOrigin);
+		GetClientEyeAngles(client, VecAngles);
+		GetAngleVectors(VecAngles, VecDirection, NULL_VECTOR, NULL_VECTOR);
+		VecOrigin[0] = VecOrigin[0] + VecDirection[0] * Distance;
+		VecOrigin[1] += VecDirection[1] * Distance;
+		VecOrigin[2] += AboutGround;
+		ent = CreateEntityByName(EntName, -1);
+		VecAngles[0] = 0.0;
+		VecAngles[2] = 0.0;
+		TeleportEntity(ent, VecOrigin, NULL_VECTOR, NULL_VECTOR);
+		DispatchKeyValueVector(ent, "Angles", VecAngles);
+		DispatchSpawn(ent);
+	}
+	return ent;
+}
+
+public CreateParticle(Ent, String:ParticleName[], Float:StayTime)
+{
+	decl Particle;
+	decl String:tName[64];
+	Particle = CreateEntityByName("info_particle_system", -1);
+	if (IsValidEdict(Particle))
+	{
+		decl Float:Position[3];
+		decl Float:Angles[3];
+		Angles[0] = GetRandomFloat(0.0, 360.0);
+		Angles[1] = GetRandomFloat(-15.0, 15.0);
+		Angles[2] = GetRandomFloat(-15.0, 15.0);
+		GetEntPropVector(Ent, PropType:0, "m_vecOrigin", Position);
+		Position[2] += GetRandomFloat(15.0, 65.0);
+		TeleportEntity(Particle, Position, Angles, NULL_VECTOR);
+		GetEntPropString(Ent, PropType:1, "m_iName", tName, 64);
+		DispatchKeyValue(Particle, "targetname", "L4DParticle");
+		DispatchKeyValue(Particle, "parentname", tName);
+		DispatchKeyValue(Particle, "effect_name", ParticleName);
+		DispatchSpawn(Particle);
+		SetVariantString(tName);
+		AcceptEntityInput(Particle, "SetParent", Particle, Particle, 0);
+		ActivateEntity(Particle);
+		AcceptEntityInput(Particle, "start", -1, -1, 0);
+		CreateTimer(StayTime, DeleteParticle, Particle, 0);
+	}
+	return 0;
+}
+
+public Action:DeleteParticle(Handle:Timer, any:Particle)
+{
+	if (IsValidEntity(Particle))
+	{
+		decl String:Classname[64];
+		GetEdictClassname(Particle, Classname, 64);
+		if (StrEqual(Classname, "info_particle_system", false))
+		{
+			RemoveEdict(Particle);
+		}
+	}
+	return Action:0;
+}
+
