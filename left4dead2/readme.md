@@ -18,7 +18,7 @@ Left 4 Dead 2 is a cooperative first-person shooter video game and the sequel to
    - Clone this repository or download it as a ZIP file.
 
      ```bash
-     git clone https://github.com/your-username/aranging-left4dead-mods.git
+     git clone https://github.com/frozenology/aranging-left4dead-mods.git
      ```
 
    - If you download the ZIP file, extract its contents to a location of your choice.
